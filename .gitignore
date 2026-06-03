@@ -1,0 +1,37 @@
+# Java / Spring Boot
+target/
+*.class
+*.jar
+*.war
+
+# Maven wrapper jar cache/log
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+application-secret.properties
+application-local.properties
+
+# Uploaded files
+uploads/
+
+# Node / frontend nanti
+node_modules/
+dist/
+build/
+
+# PostgreSQL / database dump
+*.dump
+*.backup
