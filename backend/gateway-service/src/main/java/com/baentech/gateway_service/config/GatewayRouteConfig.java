@@ -19,6 +19,18 @@ public class GatewayRouteConfig {
                 .route("product-service", route -> route
                         .path("/api/products/**", "/api/categories/**")
                         .uri("lb://PRODUCT-SERVICE"))
+                .route("user-service", route -> route
+                        .path("/api/users/**", "/api/addresses/**")
+                        .uri("lb://USER-SERVICE"))
+                .route("cart-service", route -> route
+                        .path("/api/carts/**")
+                        .uri("lb://CART-SERVICE"))
+                .route("order-service",route -> route
+                        .path("/api/orders/**")
+                        .uri("lb://ORDER-SERVICE"))
+                .route("payment-service", route -> route
+                        .path("/api/payments/**")
+                        .uri("lb://PAYMENT-SERVICE"))
                 .build();
     }
 }

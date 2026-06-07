@@ -20,10 +20,8 @@ import com.baentech.product_service.repository.CategoryRepository;
 import com.baentech.product_service.repository.ProductRepository;
 import com.baentech.product_service.service.ProductService;
 
-import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
     @Autowired

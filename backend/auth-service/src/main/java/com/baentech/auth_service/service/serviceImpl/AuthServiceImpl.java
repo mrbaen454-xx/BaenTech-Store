@@ -10,7 +10,6 @@ import com.baentech.auth_service.payload.res.UserResponse;
 import com.baentech.auth_service.repository.UserRepository;
 import com.baentech.auth_service.security.JwtUtil;
 import com.baentech.auth_service.service.AuthService;
-import lombok.RequiredArgsConstructor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -19,7 +18,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
     @Autowired

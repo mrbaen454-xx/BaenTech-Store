@@ -12,10 +12,8 @@ import com.baentech.product_service.payload.res.MessageResponse;
 import com.baentech.product_service.repository.CategoryRepository;
 import com.baentech.product_service.service.CategoryService;
 
-import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
     
     @Autowired
