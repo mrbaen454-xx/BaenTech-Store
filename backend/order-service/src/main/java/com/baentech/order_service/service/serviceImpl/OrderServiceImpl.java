@@ -5,6 +5,8 @@ import com.baentech.order_service.entity.OrderItem;
 import com.baentech.order_service.entity.OrderStatus;
 import com.baentech.order_service.payload.client.CartClientResponse;
 import com.baentech.order_service.payload.client.CartItemClientResponse;
+import com.baentech.order_service.payload.client.ProductStockItemClientRequest;
+import com.baentech.order_service.payload.client.ReduceStockClientRequest;
 import com.baentech.order_service.payload.req.CheckoutRequest;
 import com.baentech.order_service.payload.req.UpdateOrderStatusRequest;
 import com.baentech.order_service.payload.res.MessageResponse;
@@ -143,15 +145,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public OrderResponse updateOrderStatus(Long id, UpdateOrderStatusRequest request) {
+    public OrderResponse updateOrderStatus(Long id, String token,UpdateOrderStatusRequest request) {
         try {
             Order order = orderRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
-            order.setStatus(request.getStatus());
+            OrderStatus oldStatus = order.getStatus();
+            OrderStatus newStatus = request.getStatus();
+
+            order.setStatus(newStatus);
 
             Order updatedOrder = orderRepository.save(order);
 
+            if (newStatus == OrderStatus.PAID && oldStatus != OrderStatus.PAID) {
+                reduceProductStock(updatedOrder, token);
+            }
             return mapToOrderResponse(updatedOrder);
 
         } catch (Exception e) {
@@ -187,6 +195,27 @@ public class OrderServiceImpl implements OrderService {
 
         } catch (Exception e) {
             throw new RuntimeException("Gagal membatalkan order: " + e.getMessage());
+        }
+    }
+
+    private void reduceProductStock(Order order,String token) {
+        try {
+            List<ProductStockItemClientRequest> stockItems = order.getItems().stream()
+            .map(item -> new ProductStockItemClientRequest(item.getProductId(), item.getQuantity())).toList();
+
+            ReduceStockClientRequest request = new ReduceStockClientRequest(stockItems);
+
+            webClientBuilder.build()
+                    .put()
+                    .uri("http://PRODUCT-SERVICE/api/products/stock/reduce")
+                    .header("Authorization", token)
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+        } catch (Exception e) {
+
+            throw new RuntimeException("Gagal mengurangi stok produk: " + e.getMessage());
         }
     }
 

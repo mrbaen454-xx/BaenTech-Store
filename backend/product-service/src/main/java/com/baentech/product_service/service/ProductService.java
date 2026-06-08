@@ -1,6 +1,7 @@
 package com.baentech.product_service.service;
 
 import com.baentech.product_service.payload.req.ProductRequest;
+import com.baentech.product_service.payload.req.ReduceStockRequest;
 import com.baentech.product_service.payload.res.MessageResponse;
 import com.baentech.product_service.payload.res.ProductResponse;
 
@@ -27,4 +28,7 @@ public interface ProductService {
     List<ProductResponse> getProductsByBrand(String brand);
     
     ProductResponse uploadProductImage(Long productId, MultipartFile file);
+
+    MessageResponse reduceStock(ReduceStockRequest request);
+
 }

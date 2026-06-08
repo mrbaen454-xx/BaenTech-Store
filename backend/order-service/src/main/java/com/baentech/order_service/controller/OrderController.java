@@ -154,10 +154,13 @@ public class OrderController {
 
     @PutMapping("/{id}/status")
     public ResponseEntity<?> updateOrderStatus(
+            HttpServletRequest httpServletRequest,
             @PathVariable Long id,
             @Valid @RequestBody UpdateOrderStatusRequest request) {
         try {
-            OrderResponse response = orderService.updateOrderStatus(id, request);
+            String token = httpServletRequest.getHeader("Authorization");
+            
+            OrderResponse response = orderService.updateOrderStatus(id,token, request);
 
             return ResponseEntity.ok(response);
 

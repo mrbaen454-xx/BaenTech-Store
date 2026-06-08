@@ -14,6 +14,8 @@ import com.baentech.product_service.entity.Category;
 import com.baentech.product_service.entity.Product;
 import com.baentech.product_service.entity.ProductStatus;
 import com.baentech.product_service.payload.req.ProductRequest;
+import com.baentech.product_service.payload.req.ReduceStockRequest;
+import com.baentech.product_service.payload.req.StockItemRequest;
 import com.baentech.product_service.payload.res.MessageResponse;
 import com.baentech.product_service.payload.res.ProductResponse;
 import com.baentech.product_service.repository.CategoryRepository;
@@ -240,6 +242,38 @@ public class ProductServiceImpl implements ProductService {
 
         } catch (Exception e) {
             throw new RuntimeException("Gagal upload gambar produk: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public MessageResponse reduceStock(ReduceStockRequest request) {
+        try {
+            if (request.getItems() == null || request.getItems().isEmpty()) {
+                throw new RuntimeException("Item stok tidak boleh kosong");
+            }
+
+            for(StockItemRequest item : request.getItems())
+            {
+                Product product = productRepository.findById(item.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Produk dengan id " + item.getProductId() + " tidak ditemukan"));
+
+                Integer currentStock = product.getStock() != null ? product.getStock() : 0;
+                Integer quantity = item.getQuantity() != null ? item.getQuantity() : 0;
+
+                if (currentStock < quantity) {
+                    throw new RuntimeException("Stok produk " + product.getName() + " tidak mencukupi");
+                }
+
+                product.setStock(currentStock - quantity);
+                productRepository.save(product);
+            }
+
+            return MessageResponse.builder()
+                .success(true)
+                .message("Stok produk berhasil dikurangi")
+                .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal mengurangi stok produk : " + e.getMessage());
         }
     }
     private ProductResponse mapToProductResponse(Product product) 

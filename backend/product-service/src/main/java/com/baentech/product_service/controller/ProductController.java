@@ -1,6 +1,7 @@
 package com.baentech.product_service.controller;
 
 import com.baentech.product_service.payload.req.ProductRequest;
+import com.baentech.product_service.payload.req.ReduceStockRequest;
 import com.baentech.product_service.payload.res.MessageResponse;
 import com.baentech.product_service.payload.res.ProductResponse;
 import com.baentech.product_service.service.ProductService;
@@ -224,5 +225,28 @@ public class ProductController {
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }   
+    }
+
+    @PutMapping("/stock/reduce")
+    public ResponseEntity<?> reduceStock(@Valid @RequestBody ReduceStockRequest request)
+    {
+        try {
+            MessageResponse response = productService.reduceStock(request);
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Terjadi kesalahan pada server");
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 }

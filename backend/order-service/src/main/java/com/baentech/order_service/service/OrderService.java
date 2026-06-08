@@ -17,7 +17,7 @@ public interface OrderService {
 
     List<OrderResponse> getAllOrders();
 
-    OrderResponse updateOrderStatus(Long id, UpdateOrderStatusRequest request);
+    OrderResponse updateOrderStatus(Long id, String token,UpdateOrderStatusRequest request);
 
     MessageResponse cancelOrder(String email, Long id);
 }
