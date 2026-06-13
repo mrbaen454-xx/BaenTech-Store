@@ -2,7 +2,6 @@ package com.baentech.product_service.service.serviceImpl;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.baentech.product_service.entity.Category;
@@ -12,12 +11,14 @@ import com.baentech.product_service.payload.res.MessageResponse;
 import com.baentech.product_service.repository.CategoryRepository;
 import com.baentech.product_service.service.CategoryService;
 
+import lombok.RequiredArgsConstructor;
+
 
 @Service
+@RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
     
-    @Autowired
-    private CategoryRepository categoryRepository;
+    private final CategoryRepository categoryRepository;
 
     @Override
     public CategoryResponse createCategory(CategoryRequest request) 

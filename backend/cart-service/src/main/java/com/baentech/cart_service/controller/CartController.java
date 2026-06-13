@@ -7,8 +7,8 @@ import com.baentech.cart_service.payload.res.MessageResponse;
 import com.baentech.cart_service.service.CartService;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,10 +19,11 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/carts")
+@RequiredArgsConstructor
 public class CartController {
 
-    @Autowired
-    private CartService cartService;
+    // @Autowired
+    private final CartService cartService;
 
     @PostMapping("/items")
     public ResponseEntity<?> addItemToCart(Principal principal,@Valid @RequestBody AddCartItemRequest request) 

@@ -2,7 +2,6 @@ package com.baentech.user_service.service.serviceImpl;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.baentech.user_service.entity.Address;
@@ -12,13 +11,15 @@ import com.baentech.user_service.payload.res.MessageResponse;
 import com.baentech.user_service.repository.AddressRepository;
 import com.baentech.user_service.service.AddressService;
 
+import lombok.RequiredArgsConstructor;
+
 
 @Service
+@RequiredArgsConstructor
 public class AddressServiceImpl implements AddressService
 {
     
-    @Autowired
-    private AddressRepository addressRepository;
+    private final AddressRepository addressRepository;
 
     @Override
     public AddressResponse createAddress(String email, AddressRequest request)

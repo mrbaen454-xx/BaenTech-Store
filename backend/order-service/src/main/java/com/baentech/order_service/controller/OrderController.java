@@ -8,8 +8,8 @@ import com.baentech.order_service.service.OrderService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,10 +21,10 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/orders")
+@RequiredArgsConstructor
 public class OrderController {
 
-    @Autowired
-    private OrderService orderService;
+    private final OrderService orderService;
 
     @PostMapping("/checkout")
     public ResponseEntity<?> checkout(Principal principal,HttpServletRequest httpServletRequest,@Valid @RequestBody CheckoutRequest request) 
@@ -196,6 +196,41 @@ public class OrderController {
             String email = principal.getName();
 
             MessageResponse response = orderService.cancelOrder(email, id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Terjadi kesalahan pada server");
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<?> completeOrder(
+            Principal principal,
+            @PathVariable Long id) {
+        try {
+            if (principal == null) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "Anda belum login");
+
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+            }
+
+            String email = principal.getName();
+
+            OrderResponse response = orderService.completeOrder(email, id);
 
             return ResponseEntity.ok(response);
 

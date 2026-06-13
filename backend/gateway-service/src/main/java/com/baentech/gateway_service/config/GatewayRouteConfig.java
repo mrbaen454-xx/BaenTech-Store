@@ -31,6 +31,15 @@ public class GatewayRouteConfig {
                 .route("payment-service", route -> route
                         .path("/api/payments/**")
                         .uri("lb://PAYMENT-SERVICE"))
+                .route("shipping-service", route -> route
+                        .path("/api/shippings/**")
+                        .uri("lb://SHIPPING-SERVICE"))
+                .route("notification-service", route -> route
+                        .path("/api/notifications/**")
+                        .uri("lb://NOTIFICATION-SERVICE"))
+                .route("report-service", route -> route
+                        .path("/api/reports/**")
+                        .uri("lb://REPORT-SERVICE"))
                 .build();
     }
 }

@@ -2,6 +2,7 @@ package com.baentech.auth_service.service.serviceImpl;
 
 import com.baentech.auth_service.entity.Role;
 import com.baentech.auth_service.entity.User;
+import com.baentech.auth_service.payload.client.EmailClientRequest;
 import com.baentech.auth_service.payload.req.LoginRequest;
 import com.baentech.auth_service.payload.req.RegisterRequest;
 import com.baentech.auth_service.payload.res.LoginResponse;
@@ -11,23 +12,23 @@ import com.baentech.auth_service.repository.UserRepository;
 import com.baentech.auth_service.security.JwtUtil;
 import com.baentech.auth_service.service.AuthService;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
+@RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-    @Autowired
-    private AuthenticationManager authenticationManager;
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtUtil jwtUtil;
+    private final WebClient.Builder webClientBuilder;
   
 
     @Override
@@ -73,6 +74,8 @@ public class AuthServiceImpl implements AuthService {
 
             User savedUser = userRepository.save(user);
 
+            sendWelcomeEmail(request.getEmail(), request.getFullName());
+
             return RegisterResponse.builder()
                     .message("Berhasil membuat akun")
                     .user(maptoUserResponse(savedUser))
@@ -95,6 +98,35 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Gagal mengambil data user : " + e.getMessage());
         }
     }
+
+    private void sendWelcomeEmail(String email, String fullName) 
+    {
+        try {
+            EmailClientRequest emailRequest = new EmailClientRequest(
+                email,
+                "Selamat Datang di BaenTech Store",
+                "Halo " + fullName + ",\n\n" +
+                        "Akun kamu berhasil dibuat di BaenTech Store.\n" +
+                        "Sekarang kamu sudah bisa login dan mulai berbelanja produk elektronik pilihan.\n\n" +
+                        "Terima kasih sudah bergabung bersama BaenTech Store.\n\n" +
+                        "Salam,\n" +
+                        "BaenTech Store"
+            );
+
+            webClientBuilder.build()
+                .post()
+                .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
+                .bodyValue(emailRequest)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        } catch (Exception e) {
+            System.out.println("Gagal mengirim welcome email: " + e.getMessage());
+        }
+    }
+
+
 
     private UserResponse maptoUserResponse(User user) {
         return UserResponse.builder()

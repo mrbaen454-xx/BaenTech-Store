@@ -3,7 +3,6 @@ package com.baentech.cart_service.service.serviceImpl;
 import java.math.BigDecimal;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -20,17 +19,17 @@ import com.baentech.cart_service.repository.CartRepository;
 import com.baentech.cart_service.service.CartService;
 
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class CartServiceImpl implements CartService{
-    @Autowired
-    private CartRepository cartRepository;
 
-    @Autowired
-    private CartItemRepository cartItemRepository;
+    private final CartRepository cartRepository;
 
-    @Autowired
-    private WebClient.Builder webClientBuilder;
+    private final CartItemRepository cartItemRepository;
+
+    private final WebClient.Builder webClientBuilder;
 
     @Override
     public CartResponse addItemToCart(String email, AddCartItemRequest request)

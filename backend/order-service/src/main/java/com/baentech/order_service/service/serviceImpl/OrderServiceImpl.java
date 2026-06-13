@@ -5,6 +5,7 @@ import com.baentech.order_service.entity.OrderItem;
 import com.baentech.order_service.entity.OrderStatus;
 import com.baentech.order_service.payload.client.CartClientResponse;
 import com.baentech.order_service.payload.client.CartItemClientResponse;
+import com.baentech.order_service.payload.client.EmailClientRequest;
 import com.baentech.order_service.payload.client.ProductStockItemClientRequest;
 import com.baentech.order_service.payload.client.ReduceStockClientRequest;
 import com.baentech.order_service.payload.req.CheckoutRequest;
@@ -15,7 +16,9 @@ import com.baentech.order_service.payload.res.OrderResponse;
 import com.baentech.order_service.repository.OrderRepository;
 import com.baentech.order_service.service.OrderService;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -25,13 +28,12 @@ import java.util.List;
 import java.util.Random;
 
 @Service
+@RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
-    @Autowired
-    private OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
 
-    @Autowired
-    private WebClient.Builder webClientBuilder;
+    private final WebClient.Builder webClientBuilder;
 
     @Override
     public OrderResponse checkout(String email, String token, CheckoutRequest request) {
@@ -92,6 +94,8 @@ public class OrderServiceImpl implements OrderService {
 
             clearCartFromCartService(token);
 
+            sendOrderCreatedEmail(savedOrder);
+
             return mapToOrderResponse(savedOrder);
 
         } catch (Exception e) {
@@ -119,7 +123,7 @@ public class OrderServiceImpl implements OrderService {
             Order order = orderRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
-            if (!order.getEmail().equals(email)) {
+            if (!isAdmin() && !order.getEmail().equals(email)) {
                 throw new RuntimeException("Anda tidak memiliki akses ke order ini");
             }
 
@@ -196,6 +200,68 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             throw new RuntimeException("Gagal membatalkan order: " + e.getMessage());
         }
+    }
+
+    @Override
+    public OrderResponse completeOrder(String email, Long id) {
+        try {
+            Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+
+            if (!order.getEmail().equals(email)) {
+                throw new RuntimeException("Anda tidak memiliki akses ke order ini");
+            }
+
+            if (order.getStatus() != OrderStatus.PAID) {
+                throw new RuntimeException("Order hanya bisa diselesaikan jika status PAID");
+            }
+
+            order.setStatus(OrderStatus.COMPLETED);
+
+            Order savedOrder = orderRepository.save(order);
+
+            return mapToOrderResponse(savedOrder);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal menyelesaikan order: " + e.getMessage());
+        }
+    }
+
+    private void sendOrderCreatedEmail(Order order) {
+        try {
+            EmailClientRequest emailRequest = new EmailClientRequest(
+                order.getEmail(),
+                "Pesanan Berhasil Dibuat - BaenTech Store",
+                "Halo " + order.getRecipientName() + ",\n\n" +
+                        "Pesanan kamu berhasil dibuat di BaenTech Store.\n\n" +
+                        "Nomor Order: " + order.getOrderNumber() + "\n" +
+                        "Total Pembayaran: Rp " + order.getTotalPrice() + "\n\n" +
+                        "Silakan lanjutkan pembayaran agar pesanan kamu dapat segera diproses.\n\n" +
+                        "Terima kasih sudah berbelanja di BaenTech Store.\n\n" +
+                        "Salam,\n" +
+                        "BaenTech Store"
+            );
+
+            webClientBuilder.build()
+                .post()
+                .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
+                .bodyValue(emailRequest)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        } catch (Exception e) {
+            System.out.println("Gagal mengirim email order created: " + e.getMessage());
+        }
+    }
+    
+    private boolean isAdmin()
+    {
+        return SecurityContextHolder.getContext()
+            .getAuthentication()
+            .getAuthorities()
+            .stream()
+            .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
     }
 
     private void reduceProductStock(Order order,String token) {

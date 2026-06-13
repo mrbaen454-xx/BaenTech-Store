@@ -2,6 +2,7 @@ package com.baentech.payment_service.service.serviceImpl;
 
 import com.baentech.payment_service.entity.Payment;
 import com.baentech.payment_service.entity.PaymentStatus;
+import com.baentech.payment_service.payload.client.EmailClientRequest;
 import com.baentech.payment_service.payload.client.OrderClientResponse;
 import com.baentech.payment_service.payload.req.CreatePaymentRequest;
 import com.baentech.payment_service.payload.req.UpdateOrderStatusClientRequest;
@@ -10,7 +11,8 @@ import com.baentech.payment_service.payload.res.PaymentResponse;
 import com.baentech.payment_service.repository.PaymentRepository;
 import com.baentech.payment_service.service.PaymentService;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -20,13 +22,12 @@ import java.util.List;
 import java.util.Random;
 
 @Service
+@RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
-    @Autowired
-    private PaymentRepository paymentRepository;
+    private final PaymentRepository paymentRepository;
 
-    @Autowired
-    private WebClient.Builder webClientBuilder;
+    private final WebClient.Builder webClientBuilder;
 
     @Override
     public PaymentResponse createPayment(String email, String token, CreatePaymentRequest request) {
@@ -152,6 +153,8 @@ public class PaymentServiceImpl implements PaymentService {
 
             updateOrderStatusToPaid(payment.getOrderId(), token);
 
+            sendPaymentSuccessEmail(payment);
+
             return mapToPaymentResponse(savedPayment);
 
         } catch (Exception e) {
@@ -176,6 +179,8 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setStatus(PaymentStatus.FAILED);
 
             Payment savedPayment = paymentRepository.save(payment);
+
+            sendPaymentFailedEmail(payment);
 
             return mapToPaymentResponse(savedPayment);
 
@@ -209,6 +214,63 @@ public class PaymentServiceImpl implements PaymentService {
 
         } catch (Exception e) {
             throw new RuntimeException("Gagal membatalkan payment: " + e.getMessage());
+        }
+    }
+    private void sendPaymentSuccessEmail(Payment payment) {
+        try {
+            EmailClientRequest emailRequest = new EmailClientRequest(
+                payment.getEmail(),
+                "Pembayaran Berhasil - BaenTech Store",
+                "Halo,\n\n" +
+                        "Pembayaran kamu berhasil diproses.\n\n" +
+                        "Nomor Payment: " + payment.getPaymentNumber() + "\n" +
+                        "Order ID: " + payment.getOrderId() + "\n" +
+                        "Metode Pembayaran: " + payment.getPaymentMethod() + "\n" +
+                        "Total Pembayaran: Rp " + payment.getAmount() + "\n\n" +
+                        "Pesanan kamu akan segera diproses.\n\n" +
+                        "Salam,\n" +
+                        "BaenTech Store"
+            );
+
+            webClientBuilder.build()
+                .post()
+                .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
+                .bodyValue(emailRequest)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        } catch (Exception e) {
+            System.out.println("Gagal mengirim email payment success: " + e.getMessage());
+        }
+    }
+
+    private void sendPaymentFailedEmail(Payment payment) {
+        try {
+            EmailClientRequest emailRequest = new EmailClientRequest(
+                payment.getEmail(),
+                "Pembayaran Gagal - BaenTech Store",
+                "Halo,\n\n" +
+                        "Pembayaran kamu gagal diproses.\n\n" +
+                        "Nomor Payment: " + payment.getPaymentNumber() + "\n" +
+                        "Order ID: " + payment.getOrderId() + "\n" +
+                        "Metode Pembayaran: " + payment.getPaymentMethod() + "\n" +
+                        "Total Pembayaran: Rp " + payment.getAmount() + "\n\n" +
+                        "Silakan coba lakukan pembayaran kembali.\n\n" +
+                        "Salam,\n" +
+                        "BaenTech Store"
+            );
+
+            webClientBuilder.build()
+                .post()
+                .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
+                .bodyValue(emailRequest)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        } catch (Exception e) {
+            System.out.println("Gagal mengirim email payment failed: " + e.getMessage());
         }
     }
 

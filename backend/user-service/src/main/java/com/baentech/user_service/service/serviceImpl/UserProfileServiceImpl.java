@@ -1,6 +1,5 @@
 package com.baentech.user_service.service.serviceImpl;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.baentech.user_service.entity.UserProfile;
@@ -9,12 +8,14 @@ import com.baentech.user_service.payload.res.UserProfileResponse;
 import com.baentech.user_service.repository.UserProfileRepository;
 import com.baentech.user_service.service.UserProfileService;
 
+import lombok.RequiredArgsConstructor;
+
 
 @Service
+@RequiredArgsConstructor
 public class UserProfileServiceImpl implements UserProfileService
 {
-    @Autowired
-    private UserProfileRepository userProfileRepository;
+    private final UserProfileRepository userProfileRepository;
 
 
     @Override

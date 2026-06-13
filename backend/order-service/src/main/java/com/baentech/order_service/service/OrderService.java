@@ -20,4 +20,6 @@ public interface OrderService {
     OrderResponse updateOrderStatus(Long id, String token,UpdateOrderStatusRequest request);
 
     MessageResponse cancelOrder(String email, Long id);
+
+    OrderResponse completeOrder(String email, Long id);
 }
