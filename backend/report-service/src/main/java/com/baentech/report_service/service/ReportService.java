@@ -1,5 +1,7 @@
 package com.baentech.report_service.service;
 
+import com.baentech.report_service.enums.IncomePeriod;
+import com.baentech.report_service.payload.res.IncomeChartResponse;
 import com.baentech.report_service.payload.res.OrderReportResponse;
 import com.baentech.report_service.payload.res.PaymentReportResponse;
 import com.baentech.report_service.payload.res.ReportSummaryResponse;
@@ -18,4 +20,6 @@ public interface ReportService {
     byte[] exportOrderReportsToExcel(String token,LocalDate startDate,LocalDate endDate);
 
     byte[] exportPaymentReportsToExcel(String token,LocalDate startDate,LocalDate endDate);
+
+    List<IncomeChartResponse> getIncomeChart(String token, IncomePeriod period);
 }

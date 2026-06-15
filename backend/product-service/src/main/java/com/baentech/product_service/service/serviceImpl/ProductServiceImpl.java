@@ -276,9 +276,11 @@ public class ProductServiceImpl implements ProductService {
             throw new RuntimeException("Gagal mengurangi stok produk : " + e.getMessage());
         }
     }
-    private ProductResponse mapToProductResponse(Product product) 
-    {
+   
+    private ProductResponse mapToProductResponse(Product product) {
         try {
+            Category category = product.getCategory();
+
             return ProductResponse.builder()
                     .id(product.getId())
                     .name(product.getName())
@@ -289,12 +291,12 @@ public class ProductServiceImpl implements ProductService {
                     .stock(product.getStock())
                     .warranty(product.getWarranty())
                     .status(product.getStatus())
-                    .categoryId(product.getCategory().getId())
-                    .categoryName(product.getCategory().getName())
+                    .categoryId(category != null ? category.getId() : null)
+                    .categoryName(category != null ? category.getName() : "Tanpa Kategori")
                     .createdAt(product.getCreatedAt())
                     .updatedAt(product.getUpdatedAt())
                     .build();
-            
+
         } catch (Exception e) {
             throw new RuntimeException("Gagal mapping data produk : " + e.getMessage());
         }

@@ -2,9 +2,14 @@ package com.baentech.report_service.service.serviceImpl;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -14,9 +19,11 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.baentech.report_service.enums.IncomePeriod;
 import com.baentech.report_service.payload.client.OrderClientResponse;
 import com.baentech.report_service.payload.client.PaymentClientResponse;
 import com.baentech.report_service.payload.client.ShippingClientResponse;
+import com.baentech.report_service.payload.res.IncomeChartResponse;
 import com.baentech.report_service.payload.res.OrderReportResponse;
 import com.baentech.report_service.payload.res.PaymentReportResponse;
 import com.baentech.report_service.payload.res.ReportSummaryResponse;
@@ -348,4 +355,181 @@ public class ReportServiceImpl implements ReportService
             throw new RuntimeException("Gagal mengambil data SHIPPING-SERVICE : " + e.getMessage());
         }
     }
+
+    @Override
+public List<IncomeChartResponse> getIncomeChart(String token, IncomePeriod period) {
+    if (period == null) {
+        period = IncomePeriod.WEEK;
+    }
+
+    LocalDate today = LocalDate.now();
+    LocalDate startDate;
+    LocalDate endDate;
+
+    if (period == IncomePeriod.MONTH) {
+        startDate = today.withDayOfMonth(1);
+        endDate = today.withDayOfMonth(today.lengthOfMonth());
+    } else if (period == IncomePeriod.YEAR) {
+        startDate = today.withDayOfYear(1);
+        endDate = today.withDayOfYear(today.lengthOfYear());
+    } else {
+        startDate = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        endDate = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+    }
+
+    List<PaymentReportResponse> payments =
+            getPaymentReports(token, startDate, endDate);
+
+    return buildIncomeChart(period, payments);
+}
+
+private List<IncomeChartResponse> buildIncomeChart(
+        IncomePeriod period,
+        List<PaymentReportResponse> payments
+) {
+    if (period == IncomePeriod.MONTH) {
+        return buildMonthlyIncome(payments);
+    }
+
+    if (period == IncomePeriod.YEAR) {
+        return buildYearlyIncome(payments);
+    }
+
+    return buildWeeklyIncome(payments);
+}
+
+private List<IncomeChartResponse> buildWeeklyIncome(List<PaymentReportResponse> payments) {
+    Map<Integer, IncomeChartResponse> result = new LinkedHashMap<>();
+
+    result.put(1, new IncomeChartResponse("Sen", BigDecimal.ZERO));
+    result.put(2, new IncomeChartResponse("Sel", BigDecimal.ZERO));
+    result.put(3, new IncomeChartResponse("Rab", BigDecimal.ZERO));
+    result.put(4, new IncomeChartResponse("Kam", BigDecimal.ZERO));
+    result.put(5, new IncomeChartResponse("Jum", BigDecimal.ZERO));
+    result.put(6, new IncomeChartResponse("Sab", BigDecimal.ZERO));
+    result.put(7, new IncomeChartResponse("Min", BigDecimal.ZERO));
+
+    for (PaymentReportResponse payment : payments) {
+        if (!isSuccessPayment(payment)) {
+            continue;
+        }
+
+        LocalDate paymentDate = getPaymentDate(payment);
+
+        if (paymentDate == null) {
+            continue;
+        }
+
+        int dayNumber = paymentDate.getDayOfWeek().getValue();
+
+        addIncome(result.get(dayNumber), payment.getAmount());
+    }
+
+    return new ArrayList<>(result.values());
+}
+
+private List<IncomeChartResponse> buildMonthlyIncome(List<PaymentReportResponse> payments) {
+    Map<Integer, IncomeChartResponse> result = new LinkedHashMap<>();
+
+    result.put(1, new IncomeChartResponse("M1", BigDecimal.ZERO));
+    result.put(2, new IncomeChartResponse("M2", BigDecimal.ZERO));
+    result.put(3, new IncomeChartResponse("M3", BigDecimal.ZERO));
+    result.put(4, new IncomeChartResponse("M4", BigDecimal.ZERO));
+    result.put(5, new IncomeChartResponse("M5", BigDecimal.ZERO));
+
+    for (PaymentReportResponse payment : payments) {
+        if (!isSuccessPayment(payment)) {
+            continue;
+        }
+
+        LocalDate paymentDate = getPaymentDate(payment);
+
+        if (paymentDate == null) {
+            continue;
+        }
+
+        int weekNumber = (int) Math.ceil(paymentDate.getDayOfMonth() / 7.0);
+
+        if (weekNumber < 1) {
+            weekNumber = 1;
+        }
+
+        if (weekNumber > 5) {
+            weekNumber = 5;
+        }
+
+        addIncome(result.get(weekNumber), payment.getAmount());
+    }
+
+    return new ArrayList<>(result.values());
+}
+
+private List<IncomeChartResponse> buildYearlyIncome(List<PaymentReportResponse> payments) {
+    Map<Integer, IncomeChartResponse> result = new LinkedHashMap<>();
+
+    result.put(1, new IncomeChartResponse("Jan", BigDecimal.ZERO));
+    result.put(2, new IncomeChartResponse("Feb", BigDecimal.ZERO));
+    result.put(3, new IncomeChartResponse("Mar", BigDecimal.ZERO));
+    result.put(4, new IncomeChartResponse("Apr", BigDecimal.ZERO));
+    result.put(5, new IncomeChartResponse("Mei", BigDecimal.ZERO));
+    result.put(6, new IncomeChartResponse("Jun", BigDecimal.ZERO));
+    result.put(7, new IncomeChartResponse("Jul", BigDecimal.ZERO));
+    result.put(8, new IncomeChartResponse("Agu", BigDecimal.ZERO));
+    result.put(9, new IncomeChartResponse("Sep", BigDecimal.ZERO));
+    result.put(10, new IncomeChartResponse("Okt", BigDecimal.ZERO));
+    result.put(11, new IncomeChartResponse("Nov", BigDecimal.ZERO));
+    result.put(12, new IncomeChartResponse("Des", BigDecimal.ZERO));
+
+    for (PaymentReportResponse payment : payments) {
+        if (!isSuccessPayment(payment)) {
+            continue;
+        }
+
+        LocalDate paymentDate = getPaymentDate(payment);
+
+        if (paymentDate == null) {
+            continue;
+        }
+
+        int monthNumber = paymentDate.getMonthValue();
+
+        addIncome(result.get(monthNumber), payment.getAmount());
+    }
+
+    return new ArrayList<>(result.values());
+}
+
+private boolean isSuccessPayment(PaymentReportResponse payment) {
+    if (payment == null || payment.getStatus() == null) {
+        return false;
+    }
+
+    String status = payment.getStatus().toUpperCase();
+
+    return status.equals("SUCCESS")
+            || status.equals("PAID")
+            || status.equals("COMPLETED");
+}
+
+private LocalDate getPaymentDate(PaymentReportResponse payment) {
+    LocalDateTime paymentDateTime = payment.getPaidAt();
+
+    if (paymentDateTime == null) {
+        paymentDateTime = payment.getCreatedAt();
+    }
+
+    if (paymentDateTime == null) {
+        return null;
+    }
+
+    return paymentDateTime.toLocalDate();
+}
+
+private void addIncome(IncomeChartResponse response, BigDecimal amount) {
+    if (response == null || amount == null) {
+        return;
+    }
+
+    response.setValue(response.getValue().add(amount));
+}
 }
