@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import axios from "axios";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
   AlertCircle,
   BarChart3,
-  Boxes,
   CheckCircle2,
   CreditCard,
   ImagePlus,
@@ -13,15 +13,12 @@ import {
   Moon,
   Package,
   Save,
-  Search,
   ShoppingBag,
   Sun,
   Tag,
-  Trash2,
+  Truck,
   UploadCloud,
-  UserRound,
   Users,
-  Wallet,
   X,
 } from "lucide-react";
 
@@ -29,851 +26,748 @@ import logo from "../../assets/baentech-logo.png";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
-import {
-  createAdminProductApi,
-  getAdminCategoriesApi,
-  getAdminProductByIdApi,
-  updateAdminProductApi,
-  uploadAdminProductImageApi,
-} from "../../api/adminApi";
+const productBaseUrl =
+  import.meta.env.VITE_PRODUCT_API_BASE_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "";
 
-const productBaseUrl = import.meta.env.VITE_PRODUCT_API_BASE_URL || "";
+const productAxios = axios.create({
+  baseURL: productBaseUrl,
+});
+
+productAxios.interceptors.request.use(
+  (config) => {
+    const token =
+      localStorage.getItem("token") ||
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("jwt") ||
+      localStorage.getItem("authToken");
+
+    if (token) {
+      const cleanToken = token.startsWith("Bearer ")
+        ? token.replace("Bearer ", "")
+        : token;
+
+      config.headers.Authorization = `Bearer ${cleanToken}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+const PRODUCT_STATUS_OPTIONS = ["ACTIVE", "INACTIVE", "OUT_OF_STOCK"];
 
 const initialForm = {
   name: "",
-  description: "",
   brand: "",
+  categoryId: "",
   price: "",
   stock: "",
   warranty: "",
   status: "ACTIVE",
-  categoryId: "",
+  description: "",
 };
 
-function AdminProductForm() {
+function AdminProductFrom() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
+
   const isEditMode = Boolean(id);
 
-  const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { isDarkMode, toggleTheme } = useTheme();
+
+  const savedAdminProfile = getSavedAdminProfile();
+
+  const adminName =
+    savedAdminProfile?.fullName ||
+    user?.fullName ||
+    user?.name ||
+    user?.email ||
+    "Admin";
+
+  const adminProfileImage = savedAdminProfile?.profileImageUrl || "";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [form, setForm] = useState(initialForm);
+  const [formData, setFormData] = useState(initialForm);
   const [categories, setCategories] = useState([]);
 
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
-  const [oldImageUrl, setOldImageUrl] = useState("");
 
   const [loading, setLoading] = useState(isEditMode);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const pageTitle = isEditMode ? "Edit Product" : "Add Product";
-  const pageDescription = isEditMode
-    ? "Update data produk yang sudah ada."
-    : "Isi data produk baru sesuai kebutuhan backend.";
-
-    const savedAdminProfile = JSON.parse(
-      localStorage.getItem("adminProfile") || "{}",
-    );
-
-    const adminName =
-      savedAdminProfile?.fullName ||
-      user?.fullName ||
-      user?.name ||
-      user?.email ||
-      "Admin";
-
-    const adminProfileImage = savedAdminProfile?.profileImageUrl || "";
+  const menus = [
+    {
+      name: "Dashboard",
+      icon: LayoutDashboard,
+      active: location.pathname === "/admin/dashboard",
+      path: "/admin/dashboard",
+    },
+    {
+      name: "Products",
+      icon: Package,
+      active: location.pathname.startsWith("/admin/products"),
+      path: "/admin/products",
+    },
+    {
+      name: "Categories",
+      icon: Tag,
+      active: location.pathname === "/admin/categories",
+      path: "/admin/categories",
+    },
+    {
+      name: "Orders",
+      icon: ShoppingBag,
+      active: location.pathname === "/admin/orders",
+      path: "/admin/orders",
+    },
+    {
+      name: "Payments",
+      icon: CreditCard,
+      active: location.pathname === "/admin/payments",
+      path: "/admin/payments",
+    },
+    {
+      name: "Shipping",
+      icon: Truck,
+      active: location.pathname === "/admin/shipping",
+      path: "/admin/shipping",
+    },
+    {
+      name: "Reports",
+      icon: BarChart3,
+      active: location.pathname === "/admin/reports",
+      path: "/admin/reports",
+    },
+  ];
 
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        setError("");
+    fetchCategories();
 
-        const categoryData = await getAdminCategoriesApi();
-        setCategories(Array.isArray(categoryData) ? categoryData : []);
+    if (isEditMode) {
+      fetchProductDetail();
+    }
+  }, [id]);
 
-        if (isEditMode) {
-          const product = await getAdminProductByIdApi(id);
-
-          setForm({
-            name: product.name || "",
-            description: product.description || "",
-            brand: product.brand || "",
-            price: product.price ?? "",
-            stock: product.stock ?? "",
-            warranty: product.warranty || "",
-            status: product.status || "ACTIVE",
-            categoryId: product.categoryId || product.category?.id || "",
-          });
-
-          const image = getProductImage(product);
-
-          if (image) {
-            setOldImageUrl(image);
-            setImagePreview(image);
-          }
-        }
-      } catch (err) {
-        console.log(err);
-        setError(
-          isEditMode
-            ? "Gagal mengambil detail produk."
-            : "Gagal mengambil data kategori.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitialData();
-  }, [id, isEditMode]);
-
-  const selectedCategoryName = useMemo(() => {
-    const category = categories.find(
-      (item) => String(item.id) === String(form.categoryId),
+  const selectedCategory = useMemo(() => {
+    return categories.find(
+      (category) => String(category.id) === String(formData.categoryId),
     );
+  }, [categories, formData.categoryId]);
 
-    return category?.name || "-";
-  }, [categories, form.categoryId]);
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+
+      const response = await productAxios.get("/api/categories");
+      setCategories(normalizeListResponse(response.data));
+    } catch (err) {
+      console.log("ERROR FETCH CATEGORIES:", err);
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Gagal mengambil data categories.",
+      );
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  const fetchProductDetail = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await productAxios.get(`/api/products/${id}`);
+      const product = normalizeObjectResponse(response.data);
+
+      setFormData({
+        name: product.name || "",
+        brand: product.brand || "",
+        categoryId: product.categoryId || product.category?.id || "",
+        price: product.price || "",
+        stock: product.stock ?? "",
+        warranty: product.warranty || "",
+        status: product.status || "ACTIVE",
+        description: product.description || "",
+      });
+
+      setImagePreview(getProductImageUrl(product.imageUrl));
+    } catch (err) {
+      console.log("ERROR FETCH PRODUCT DETAIL:", err);
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Gagal mengambil detail product.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
-    logout?.();
+    logout();
     navigate("/login");
   };
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
+  const handleChange = (e) => {
+    const { name, value } = e.target;
 
-    setForm((prev) => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
-  const handleImageChange = (event) => {
-    const file = event.target.files?.[0];
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
 
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
 
-  const removeSelectedImage = () => {
-    setImageFile(null);
-    setImagePreview(oldImageUrl || "");
-  };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  const validateForm = () => {
-    if (!form.name.trim()) {
-      return "Nama produk wajib diisi.";
+    if (!formData.name || !formData.brand || !formData.price || !formData.stock) {
+      setError("Nama, brand, harga, dan stok wajib diisi.");
+      return;
     }
 
-    if (!form.description.trim()) {
-      return "Deskripsi produk wajib diisi.";
-    }
-
-    if (!form.brand.trim()) {
-      return "Brand produk wajib diisi.";
-    }
-
-    if (!form.categoryId) {
-      return "Kategori produk wajib dipilih.";
-    }
-
-    if (Number(form.price) <= 0) {
-      return "Harga produk harus lebih dari 0.";
-    }
-
-    if (Number(form.stock) < 0) {
-      return "Stok produk tidak boleh kurang dari 0.";
-    }
-
-    const allowedStatus = ["ACTIVE", "INACTIVE", "OUT_OF_STOCK"];
-
-    if (!allowedStatus.includes(form.status)) {
-      return "Status produk tidak valid.";
-    }
-
-    return "";
-  };
-
-  const buildPayload = () => {
-    return {
-      name: form.name.trim(),
-      description: form.description.trim(),
-      brand: form.brand.trim(),
-      price: Number(form.price),
-      stock: Number(form.stock),
-      warranty: form.warranty.trim(),
-      status: form.status,
-      categoryId: Number(form.categoryId),
-    };
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    const validationMessage = validateForm();
-
-    if (validationMessage) {
-      setError(validationMessage);
+    if (!formData.categoryId) {
+      setError("Kategori wajib dipilih.");
       return;
     }
 
     try {
       setSaving(true);
       setError("");
+      setSuccessMessage("");
 
-      const payload = buildPayload();
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        brand: formData.brand,
+        price: Number(formData.price),
+        stock: Number(formData.stock),
+        warranty: formData.warranty,
+        status: formData.status,
+        categoryId: Number(formData.categoryId),
+      };
 
-      let savedProduct;
+      const productResponse = isEditMode
+        ? await productAxios.put(`/api/products/${id}`, payload)
+        : await productAxios.post("/api/products", payload);
 
-      if (isEditMode) {
-        savedProduct = await updateAdminProductApi(id, payload);
-      } else {
-        savedProduct = await createAdminProductApi(payload);
-      }
-
-      const productId = savedProduct?.id || id;
+      const savedProduct = normalizeObjectResponse(productResponse.data);
+      const productId = savedProduct.id || id;
 
       if (imageFile && productId) {
-        await uploadAdminProductImageApi(productId, imageFile);
+        const imagePayload = new FormData();
+        imagePayload.append("file", imageFile);
+
+        await productAxios.post(`/api/products/${productId}/image`, imagePayload, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
       }
 
-      navigate("/admin/products");
-    } catch (err) {
-      console.log(
-        "ERROR URL:",
-        `${err.config?.baseURL || ""}${err.config?.url || ""}`,
+      setSuccessMessage(
+        isEditMode ? "Product berhasil diperbarui." : "Product berhasil dibuat.",
       );
-      console.log("ERROR METHOD:", err.config?.method);
-      console.log("ERROR RESPONSE:", err.response?.data);
-      console.log(err);
 
-      const message =
+      setTimeout(() => {
+        navigate("/admin/products");
+      }, 700);
+    } catch (err) {
+      console.log("ERROR SAVE PRODUCT:", err);
+      setError(
         err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Gagal menyimpan produk.";
-
-      setError(message);
+          err.response?.data?.error ||
+          "Gagal menyimpan product.",
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-white">
-      {sidebarOpen && (
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/60 lg:hidden"
-          aria-label="Tutup sidebar"
-        />
-      )}
+  const SidebarContent = () => {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between px-5 py-6">
+          <div className="inline-flex cursor-default select-none">
+            <img
+              src={logo}
+              alt="BaenTech Store"
+              className="h-16 w-auto object-contain"
+            />
+          </div>
 
-      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-slate-200 bg-white px-5 py-6 dark:border-slate-800 dark:bg-slate-900 lg:block">
-        <SidebarContent activeMenu="products" onLogout={handleLogout} />
-      </aside>
-
-      <aside
-        className={`fixed left-0 top-0 z-50 h-screen w-72 border-r border-slate-200 bg-white px-5 py-6 transition dark:border-slate-800 dark:bg-slate-900 lg:hidden ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="mb-4 flex items-center justify-end">
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 dark:border-slate-700 dark:text-white"
+            className="rounded-full border border-slate-200 p-2 text-slate-600 dark:border-slate-700 dark:text-slate-300 lg:hidden"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <SidebarContent
-          activeMenu="products"
-          onLogout={handleLogout}
-          onNavigate={() => setSidebarOpen(false)}
+        <nav className="mt-3 flex-1 space-y-2 px-4">
+          {menus.map((menu) => {
+            const Icon = menu.icon;
+
+            return (
+              <Link
+                key={menu.name}
+                to={menu.path}
+                onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-4 rounded-2xl px-4 py-3 text-sm font-black transition ${
+                  menu.active
+                    ? "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-400"
+                }`}
+              >
+                <Icon size={21} />
+                <span>{menu.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="px-4 pb-6">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-4 rounded-2xl px-4 py-3 text-sm font-black text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+          >
+            <LogOut size={21} />
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950">
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
         />
+      )}
+
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:block">
+        <SidebarContent />
       </aside>
 
-      <main className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/90 sm:px-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-white lg:hidden"
-              >
-                <Menu size={21} />
-              </button>
+      <aside
+        className={`fixed left-0 top-0 z-50 h-screen w-72 border-r border-slate-200 bg-white transition duration-300 dark:border-slate-800 dark:bg-slate-900 lg:hidden ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <SidebarContent />
+      </aside>
 
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-600 dark:text-blue-400">
-                  Admin Panel
-                </p>
-                <h1 className="text-xl font-black text-slate-950 dark:text-white sm:text-2xl">
-                  {pageTitle}
-                </h1>
-              </div>
-            </div>
+      <main className="lg:ml-72">
+        <div className="p-4 sm:p-6 lg:p-8">
+          <div className="sticky top-3 z-30 rounded-[2rem] border border-slate-200 bg-white/85 p-3 shadow-xl shadow-slate-300/40 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/30">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white lg:hidden"
+                >
+                  <Menu size={20} />
+                </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
-              >
-                {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
-              </button>
-
-              <Link
-                to="/admin/profile"
-                className="hidden items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 transition hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500 dark:hover:bg-blue-950/30 sm:flex"
-              >
-                {adminProfileImage ? (
-                  <img
-                    src={adminProfileImage}
-                    alt={adminName}
-                    className="h-8 w-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                  />
-                ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white">
-                    <UserRound size={16} />
-                  </div>
-                )}
-
-                <div className="leading-tight">
-                  <p className="text-xs font-black text-slate-900 dark:text-white">
-                    {adminName}
-                  </p>
-                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    Administrator
+                <div>
+                  <h1 className="text-xl font-black text-slate-950 dark:text-white">
+                    {isEditMode ? "Edit Product" : "Add Product"}
+                  </h1>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    Dashboard / Products / {isEditMode ? "Edit" : "Add"}
                   </p>
                 </div>
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        <section className="px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-500 dark:text-slate-400">
-                <Link
-                  to="/admin/dashboard"
-                  className="transition hover:text-blue-600"
-                >
-                  Dashboard
-                </Link>
-                <span>/</span>
-                <Link
-                  to="/admin/products"
-                  className="transition hover:text-blue-600"
-                >
-                  Products
-                </Link>
-                <span>/</span>
-                <span className="text-blue-600 dark:text-blue-400">
-                  {isEditMode ? "Edit" : "Add"}
-                </span>
               </div>
 
-              <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                {pageTitle}
-              </h2>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-yellow-300"
+                >
+                  {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
+                </button>
 
-              <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                {pageDescription}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => navigate("/admin/products")}
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
-            >
-              Kembali
-            </button>
-          </div>
-
-          {loading ? (
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-sm font-black text-slate-500 dark:text-slate-400">
-                Memuat form produk...
-              </p>
-            </div>
-          ) : (
-            <form
-              onSubmit={handleSubmit}
-              className="grid gap-6 xl:grid-cols-[1fr_320px]"
-            >
-              <div className="rounded-[2rem] border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="border-b border-slate-200 p-5 dark:border-slate-800 sm:p-6">
-                  <h3 className="text-lg font-black text-slate-950 dark:text-white">
-                    Informasi Produk
-                  </h3>
-                  <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                    Field disesuaikan dengan backend: name, description, brand,
-                    price, stock, warranty, status, categoryId.
-                  </p>
-                </div>
-
-                <div className="space-y-6 p-5 sm:p-6">
-                  {error && (
-                    <div className="flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-                      <AlertCircle size={19} className="shrink-0" />
-                      <span>{error}</span>
+                <Link
+                  to="/admin/profile"
+                  className="hidden items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-2 pr-4 transition hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-blue-500 dark:hover:bg-blue-950/30 sm:flex"
+                >
+                  {adminProfileImage ? (
+                    <img
+                      src={adminProfileImage}
+                      alt={adminName}
+                      className="h-9 w-9 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50">
+                      <Users size={18} />
                     </div>
                   )}
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <FormField label="Nama Produk" required>
-                      <input
-                        name="name"
-                        value={form.name}
-                        onChange={handleChange}
-                        placeholder="Contoh: iPhone 15 Pro Max"
-                        className="admin-input"
-                      />
-                    </FormField>
-
-                    <FormField label="Brand" required>
-                      <input
-                        name="brand"
-                        value={form.brand}
-                        onChange={handleChange}
-                        placeholder="Contoh: Apple"
-                        className="admin-input"
-                      />
-                    </FormField>
-                  </div>
-
-                  <FormField label="Deskripsi" required>
-                    <textarea
-                      name="description"
-                      value={form.description}
-                      onChange={handleChange}
-                      placeholder="Masukkan deskripsi produk..."
-                      rows={6}
-                      className="admin-input resize-none py-4"
-                    />
-                  </FormField>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <FormField label="Kategori" required>
-                      <select
-                        name="categoryId"
-                        value={form.categoryId}
-                        onChange={handleChange}
-                        className="admin-input"
-                      >
-                        <option value="">Pilih kategori</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </FormField>
-
-                    <FormField label="Status" required>
-                      <select
-                        name="status"
-                        value={form.status}
-                        onChange={handleChange}
-                        className="admin-input"
-                      >
-                        <option value="ACTIVE">Active</option>
-                        <option value="INACTIVE">Inactive</option>
-                        <option value="OUT_OF_STOCK">Out Of Stock</option>
-                      </select>
-                    </FormField>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <FormField label="Harga" required>
-                      <div className="flex overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 focus-within:border-blue-500 focus-within:bg-white dark:border-slate-700 dark:bg-slate-950 dark:focus-within:border-blue-500">
-                        <span className="flex items-center border-r border-slate-200 px-4 text-sm font-black text-slate-500 dark:border-slate-700">
-                          Rp
-                        </span>
-                        <input
-                          type="number"
-                          name="price"
-                          value={form.price}
-                          onChange={handleChange}
-                          min="0"
-                          placeholder="0"
-                          className="h-12 w-full bg-transparent px-4 text-sm font-bold text-slate-900 outline-none dark:text-white"
-                        />
-                      </div>
-                    </FormField>
-
-                    <FormField label="Stok" required>
-                      <input
-                        type="number"
-                        name="stock"
-                        value={form.stock}
-                        onChange={handleChange}
-                        min="0"
-                        placeholder="0"
-                        className="admin-input"
-                      />
-                    </FormField>
-                  </div>
-
-                  <FormField label="Garansi">
-                    <input
-                      name="warranty"
-                      value={form.warranty}
-                      onChange={handleChange}
-                      placeholder="Contoh: Garansi resmi 1 tahun"
-                      className="admin-input"
-                    />
-                  </FormField>
-
                   <div>
-                    <label className="text-sm font-black text-slate-700 dark:text-slate-200">
-                      Gambar Produk
-                    </label>
+                    <p className="text-sm font-black text-slate-950 dark:text-white">
+                      {adminName}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Administrator
+                    </p>
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
 
-                    <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_260px]">
-                      <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-blue-500 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-blue-500 dark:hover:bg-blue-950/30">
-                        <UploadCloud
-                          size={42}
-                          className="text-blue-600 dark:text-blue-400"
-                        />
-                        <p className="mt-4 text-sm font-black text-slate-700 dark:text-slate-200">
-                          Klik untuk upload gambar
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                          PNG, JPG, JPEG, WEBP
-                        </p>
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-950 dark:text-white sm:text-3xl">
+                {isEditMode ? "Update Product" : "Create Product"}
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                Isi data produk sesuai field backend: name, brand, price, stock,
+                warranty, status, dan categoryId.
+              </p>
+            </div>
 
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg,image/webp"
-                          onChange={handleImageChange}
-                          className="hidden"
-                        />
-                      </label>
+            <Link
+              to="/admin/products"
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+            >
+              Back to Products
+            </Link>
+          </div>
 
-                      <div className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
-                        <p className="text-sm font-black text-slate-700 dark:text-slate-200">
-                          Preview
-                        </p>
+          {error && (
+            <div className="mt-6 flex items-start gap-3 rounded-2xl bg-red-100 px-5 py-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
+              <AlertCircle size={18} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
-                        <div className="mt-3 flex h-36 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
-                          {imagePreview ? (
-                            <img
-                              src={imagePreview}
-                              alt="Preview"
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="text-center">
-                              <ImagePlus
-                                size={34}
-                                className="mx-auto text-slate-400"
-                              />
-                              <p className="mt-2 text-xs font-bold text-slate-400">
-                                Belum ada gambar
-                              </p>
-                            </div>
-                          )}
-                        </div>
+          {successMessage && (
+            <div className="mt-6 flex items-center gap-3 rounded-2xl bg-green-100 px-5 py-4 text-sm font-bold text-green-700 dark:bg-green-950/40 dark:text-green-300">
+              <CheckCircle2 size={18} />
+              <span>{successMessage}</span>
+            </div>
+          )}
 
-                        {imageFile && (
-                          <button
-                            type="button"
-                            onClick={removeSelectedImage}
-                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-black text-red-600 transition hover:bg-red-600 hover:text-white dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
-                          >
-                            <Trash2 size={15} />
-                            Hapus pilihan
-                          </button>
-                        )}
-                      </div>
-                    </div>
+          <form
+            onSubmit={handleSubmit}
+            className="mt-6 grid gap-6 xl:grid-cols-[1fr_380px]"
+          >
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+              <div className="mb-6">
+                <h3 className="text-lg font-black text-slate-950 dark:text-white">
+                  Product Information
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  Data utama produk yang akan ditampilkan ke user.
+                </p>
+              </div>
+
+              {loading ? (
+                <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+                  Memuat detail product...
+                </div>
+              ) : (
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FormField label="Product Name" required>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      placeholder="Contoh: Laptop Lenovo ThinkPad"
+                      className="field-input"
+                    />
+                  </FormField>
+
+                  <FormField label="Brand" required>
+                    <input
+                      type="text"
+                      name="brand"
+                      value={formData.brand}
+                      onChange={handleChange}
+                      placeholder="Contoh: Lenovo"
+                      className="field-input"
+                    />
+                  </FormField>
+
+                  <FormField label="Category" required>
+                    <select
+                      name="categoryId"
+                      value={formData.categoryId}
+                      onChange={handleChange}
+                      className="field-input"
+                    >
+                      <option value="">
+                        {categoriesLoading ? "Loading..." : "Pilih category"}
+                      </option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name || category.categoryName}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+
+                  <FormField label="Status">
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleChange}
+                      className="field-input"
+                    >
+                      {PRODUCT_STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+
+                  <FormField label="Price" required>
+                    <input
+                      type="number"
+                      min="0"
+                      name="price"
+                      value={formData.price}
+                      onChange={handleChange}
+                      placeholder="Contoh: 7500000"
+                      className="field-input"
+                    />
+                  </FormField>
+
+                  <FormField label="Stock" required>
+                    <input
+                      type="number"
+                      min="0"
+                      name="stock"
+                      value={formData.stock}
+                      onChange={handleChange}
+                      placeholder="Contoh: 10"
+                      className="field-input"
+                    />
+                  </FormField>
+
+                  <FormField label="Warranty">
+                    <input
+                      type="text"
+                      name="warranty"
+                      value={formData.warranty}
+                      onChange={handleChange}
+                      placeholder="Contoh: 1 Tahun"
+                      className="field-input"
+                    />
+                  </FormField>
+
+                  <div className="rounded-2xl bg-blue-50 p-4 dark:bg-blue-950/30">
+                    <p className="text-xs font-black uppercase text-blue-600 dark:text-blue-300">
+                      Selected Category
+                    </p>
+                    <p className="mt-2 text-sm font-black text-slate-950 dark:text-white">
+                      {selectedCategory?.name ||
+                        selectedCategory?.categoryName ||
+                        "Belum dipilih"}
+                    </p>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FormField label="Description">
+                      <textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        rows="6"
+                        placeholder="Tulis deskripsi produk..."
+                        className="field-input min-h-36 resize-none py-3"
+                      />
+                    </FormField>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:justify-end sm:p-6">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/admin/products")}
-                    className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-800"
-                  >
-                    Batal
-                  </button>
+            <div className="space-y-6">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+                <div className="mb-5">
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">
+                    Product Image
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    Upload gambar setelah produk dibuat/disimpan.
+                  </p>
+                </div>
 
+                <label className="flex min-h-72 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-slate-50 p-5 text-center transition hover:border-blue-500 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-blue-500 dark:hover:bg-blue-950/30">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="h-56 w-full rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <>
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
+                        <ImagePlus size={30} />
+                      </div>
+                      <p className="mt-4 text-sm font-black text-slate-700 dark:text-slate-200">
+                        Click to upload product image
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        JPG, PNG, atau WEBP
+                      </p>
+                    </>
+                  )}
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </label>
+
+                {imageFile && (
+                  <div className="mt-4 flex items-center gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                    <UploadCloud size={18} />
+                    <span>{imageFile.name}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+                <h3 className="text-lg font-black text-slate-950 dark:text-white">
+                  Action
+                </h3>
+
+                <div className="mt-5 space-y-3">
                   <button
                     type="submit"
-                    disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={saving || loading}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={18} />
                     {saving
-                      ? "Menyimpan..."
+                      ? "Saving..."
                       : isEditMode
                         ? "Update Product"
-                        : "Save Product"}
+                        : "Create Product"}
                   </button>
+
+                  <Link
+                    to="/admin/products"
+                    className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </Link>
                 </div>
               </div>
-
-              <ProductSummary
-                form={form}
-                selectedCategoryName={selectedCategoryName}
-                imagePreview={imagePreview}
-                isEditMode={isEditMode}
-              />
-            </form>
-          )}
-        </section>
+            </div>
+          </form>
+        </div>
       </main>
+
+      <style>{`
+        .field-input {
+          width: 100%;
+          height: 48px;
+          border-radius: 1rem;
+          border: 1px solid rgb(226 232 240);
+          background: rgb(248 250 252);
+          padding: 0 1rem;
+          font-size: 0.875rem;
+          font-weight: 700;
+          color: rgb(51 65 85);
+          outline: none;
+          transition: 150ms ease;
+        }
+
+        .field-input:focus {
+          border-color: rgb(59 130 246);
+          box-shadow: 0 0 0 4px rgb(59 130 246 / 0.12);
+        }
+
+        .dark .field-input {
+          border-color: rgb(51 65 85);
+          background: rgb(2 6 23);
+          color: white;
+        }
+      `}</style>
     </div>
   );
 }
 
-function SidebarContent({ activeMenu, onLogout, onNavigate }) {
-  return (
-    <div className="flex h-full flex-col">
-      <div className="mb-8">
-        <div className="inline-flex cursor-default select-none">
-          <img
-            src={logo}
-            alt="BaenTech Store"
-            className="h-16 w-auto object-contain"
-          />
-        </div>
-
-        <p className="mt-3 text-xs font-black uppercase tracking-[0.25em] text-slate-400">
-          Admin Workspace
-        </p>
-      </div>
-
-      <nav className="space-y-2">
-        <AdminNavLink
-          to="/admin/dashboard"
-          icon={LayoutDashboard}
-          label="Dashboard"
-          active={activeMenu === "dashboard"}
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/products"
-          icon={Package}
-          label="Products"
-          active={activeMenu === "products"}
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/categories"
-          icon={Tag}
-          label="Categories"
-          active={activeMenu === "categories"}
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/orders"
-          icon={ShoppingBag}
-          label="Orders"
-          active={activeMenu === "orders"}
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/payments"
-          icon={CreditCard}
-          label="Payments"
-          active={activeMenu === "payments"}
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/customers"
-          icon={Users}
-          label="Customers"
-          active={activeMenu === "customers"}
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/finance"
-          icon={Wallet}
-          label="Finance"
-          active={activeMenu === "finance"}
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/reports"
-          icon={BarChart3}
-          label="Reports"
-          active={activeMenu === "reports"}
-          onNavigate={onNavigate}
-        />
-      </nav>
-
-      <div className="mt-auto">
-        <button
-          type="button"
-          onClick={onLogout}
-          className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/30"
-        >
-          <LogOut size={19} />
-          Logout
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AdminNavLink({ to, icon: Icon, label, active, onNavigate }) {
-  return (
-    <Link
-      to={to}
-      onClick={onNavigate}
-      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black transition ${
-        active
-          ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-      }`}
-    >
-      <Icon size={19} />
-      {label}
-    </Link>
-  );
-}
-
-function ProductSummary({
-  form,
-  selectedCategoryName,
-  imagePreview,
-  isEditMode,
-}) {
-  return (
-    <aside className="h-fit rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:sticky xl:top-24">
-      <h3 className="text-lg font-black text-slate-950 dark:text-white">
-        Product Summary
-      </h3>
-
-      <div className="mt-5 flex h-44 items-center justify-center overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800">
-        {imagePreview ? (
-          <img
-            src={imagePreview}
-            alt="Product preview"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <Package size={42} className="text-slate-400" />
-        )}
-      </div>
-
-      <div className="mt-5 space-y-4">
-        <SummaryItem label="Name" value={form.name || "-"} />
-        <SummaryItem label="Brand" value={form.brand || "-"} />
-        <SummaryItem label="Category" value={selectedCategoryName} />
-        <SummaryItem label="Price" value={formatCurrency(form.price)} />
-        <SummaryItem label="Stock" value={form.stock || "0"} />
-        <SummaryItem label="Warranty" value={form.warranty || "-"} />
-
-        <div>
-          <p className="text-xs font-black text-slate-500 dark:text-slate-400">
-            Status
-          </p>
-          <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-            {form.status === "OUT_OF_STOCK"
-              ? "OUT OF STOCK"
-              : form.status || "-"}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
-        <div className="flex gap-3">
-          {isEditMode ? (
-            <CheckCircle2
-              size={20}
-              className="shrink-0 text-blue-600 dark:text-blue-400"
-            />
-          ) : (
-            <Search
-              size={20}
-              className="shrink-0 text-blue-600 dark:text-blue-400"
-            />
-          )}
-
-          <p className="text-xs font-bold leading-relaxed text-blue-700 dark:text-blue-300">
-            {isEditMode
-              ? "Perubahan produk akan langsung dikirim ke backend melalui endpoint update."
-              : "Setelah produk dibuat, gambar akan diupload ke endpoint image produk."}
-          </p>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function SummaryItem({ label, value }) {
-  return (
-    <div>
-      <p className="text-xs font-black text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <p className="mt-1 break-words text-sm font-black text-slate-950 dark:text-white">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function FormField({ label, required, children }) {
+function FormField({ label, required = false, children }) {
   return (
     <label className="block">
-      <span className="text-sm font-black text-slate-700 dark:text-slate-200">
-        {label}
-        {required && <span className="text-red-500"> *</span>}
+      <span className="mb-2 block text-xs font-black uppercase text-slate-500 dark:text-slate-400">
+        {label} {required && <span className="text-red-500">*</span>}
       </span>
-
-      <div className="mt-2">{children}</div>
+      {children}
     </label>
   );
 }
 
-function getProductImage(product) {
-  const image =
-    product.imageUrl || product.image || product.photo || product.thumbnail;
+function normalizeListResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.categories)) return data.categories;
+  if (Array.isArray(data?.content)) return data.content;
+  if (Array.isArray(data?.result)) return data.result;
 
-  if (!image) {
-    return "";
-  }
-
-  if (String(image).startsWith("http")) {
-    return image;
-  }
-
-  return `${productBaseUrl}${image}`;
+  return [];
 }
 
-function formatCurrency(value) {
-  return `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
+function normalizeObjectResponse(data) {
+  if (data?.data) return data.data;
+  return data;
 }
 
-export default AdminProductForm;
+function getSavedAdminProfile() {
+  try {
+    return JSON.parse(localStorage.getItem("adminProfile") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function getProductImageUrl(imageUrl) {
+  if (!imageUrl) return "";
+
+  if (String(imageUrl).startsWith("http")) {
+    return imageUrl;
+  }
+
+  if (String(imageUrl).startsWith("/")) {
+    return `${productBaseUrl}${imageUrl}`;
+  }
+
+  return imageUrl;
+}
+
+export default AdminProductFrom;

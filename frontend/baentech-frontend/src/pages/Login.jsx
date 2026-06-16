@@ -6,12 +6,86 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/baentech-logo.png";
 
+const normalizeRole = (role) => {
+  if (!role) return "";
+
+  if (Array.isArray(role)) {
+    return normalizeRole(role[0]);
+  }
+
+  return String(role).replace("ROLE_", "").toUpperCase();
+};
+
+const getRoleFromToken = (token) => {
+  try {
+    if (!token) return "";
+
+    const cleanToken = token.startsWith("Bearer ")
+      ? token.replace("Bearer ", "")
+      : token;
+
+    const payload = JSON.parse(atob(cleanToken.split(".")[1]));
+
+    return (
+      payload.role ||
+      payload.roles ||
+      payload.authority ||
+      payload.authorities ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+};
+
+const getFromPath = (from) => {
+  if (!from) return "/";
+
+  if (typeof from === "string") {
+    return from;
+  }
+
+  if (from.pathname) {
+    return from.pathname;
+  }
+
+  return "/";
+};
+
+const resolveRedirectPath = (role, fromPath) => {
+  const normalizedRole = normalizeRole(role);
+
+  if (normalizedRole === "ADMIN") {
+    if (fromPath && fromPath.startsWith("/admin")) {
+      return fromPath;
+    }
+
+    return "/admin/dashboard";
+  }
+
+  // USER tidak boleh diarahkan ke halaman admin
+  if (fromPath && fromPath.startsWith("/admin")) {
+    return "/";
+  }
+
+  // USER juga jangan balik ke halaman auth
+  if (
+    fromPath === "/login" ||
+    fromPath === "/register" ||
+    fromPath === "/admin/dashboard"
+  ) {
+    return "/";
+  }
+
+  return fromPath || "/";
+};
+
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
 
-  const from = location.state?.from || "/";
+  const fromPath = getFromPath(location.state?.from || "/");
 
   const [form, setForm] = useState({
     email: "",
@@ -36,13 +110,24 @@ function Login() {
     try {
       const user = await login(form.email, form.password);
 
-      if (from !== "/") {
-        navigate(from, { replace: true });
-      } else if (user.role === "ADMIN" || user.role === "ROLE_ADMIN") {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/");
-      }
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("jwt") ||
+        localStorage.getItem("authToken");
+
+      const roleFromUser =
+        user?.role || user?.roles || user?.authority || user?.authorities || "";
+
+      const roleFromToken = getRoleFromToken(token);
+
+      const finalRole = normalizeRole(roleFromUser || roleFromToken);
+
+      localStorage.setItem("role", finalRole);
+
+      const redirectPath = resolveRedirectPath(finalRole, fromPath);
+
+      navigate(redirectPath, { replace: true });
     } catch (err) {
       console.log(err);
 
@@ -118,7 +203,7 @@ function Login() {
             </div>
 
             {error && (
-              <div className="mb-5 rounded-xl bg-red-100 px-4 py-3 text-sm font-bold text-red-700">
+              <div className="mb-5 rounded-xl bg-red-100 px-4 py-3 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
                 {error}
               </div>
             )}

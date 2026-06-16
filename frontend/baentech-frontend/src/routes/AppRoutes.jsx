@@ -12,6 +12,10 @@ import AdminProfile from "../pages/admin/AdminProfile";
 import AdminCategories from "../pages/admin/AdminCategories";
 import AdminOrders from "../pages/admin/AdminOrders";
 import AdminPayments from "../pages/admin/AdminPayments";
+import AdminShipping from "../pages/admin/AdminShipping";
+import AdminReports from "../pages/admin/AdminReports";
+
+import UserHome from "../pages/user/UserHome";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -91,6 +95,26 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/admin/shipping"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
+            <AdminShipping />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
+            <AdminReports />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* User */}
+      <Route path="/" element={<UserHome />} />
+      <Route path="/products" element={<UserHome />} />
     </Routes>
   );
 }

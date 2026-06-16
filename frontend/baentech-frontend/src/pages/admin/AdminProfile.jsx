@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Sun,
   Tag,
+  Truck,
   UserRound,
   Users,
   Wallet,
@@ -108,17 +109,24 @@ function AdminProfile() {
       path: "/admin/payments",
     },
     {
-      name: "Customers",
-      icon: Users,
-      active: location.pathname === "/admin/customers",
-      path: "/admin/customers",
+        name: "Shipping",
+        icon: Truck,
+        active: location.pathname === "/admin/shipping",
+        path: "/admin/shipping",
     },
-    {
-      name: "Finance",
-      icon: Wallet,
-      active: location.pathname === "/admin/finance",
-      path: "/admin/finance",
-    },
+    // {
+    //   name: "Customers",
+    //   icon: Users,
+    //   active: location.pathname === "/admin/customers",
+    //   path: "/admin/customers",
+    // },
+
+    // {
+    //   name: "Finance",
+    //   icon: Wallet,
+    //   active: location.pathname === "/admin/finance",
+    //   path: "/admin/finance",
+    // },
     {
       name: "Reports",
       icon: BarChart3,

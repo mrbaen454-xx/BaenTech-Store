@@ -1,69 +1,75 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import axios from "axios";
+import { Link, useLocation, useNavigate } from "react-router";
 import {
   AlertTriangle,
   BarChart3,
-  Boxes,
-  ChevronLeft,
-  ChevronRight,
+  CalendarDays,
+  CheckCircle2,
   CreditCard,
+  Edit3,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
   Package,
-  Pencil,
   Plus,
-  RefreshCcw,
+  RefreshCw,
   Search,
   ShoppingBag,
   Sun,
   Tag,
   Trash2,
-  UserRound,
+  Truck,
   Users,
-  Wallet,
   X,
+  XCircle,
 } from "lucide-react";
+
 import logo from "../../assets/baentech-logo.png";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
-import {
-  deleteAdminProductApi,
-  getAdminCategoriesApi,
-  getAdminProductsApi,
-} from "../../api/adminApi";
+const productBaseUrl =
+  import.meta.env.VITE_PRODUCT_API_BASE_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "";
 
-const productBaseUrl = import.meta.env.VITE_PRODUCT_API_BASE_URL || "";
+const productAxios = axios.create({
+  baseURL: productBaseUrl,
+});
+
+productAxios.interceptors.request.use(
+  (config) => {
+    const token =
+      localStorage.getItem("token") ||
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("jwt") ||
+      localStorage.getItem("authToken");
+
+    if (token) {
+      const cleanToken = token.startsWith("Bearer ")
+        ? token.replace("Bearer ", "")
+        : token;
+
+      config.headers.Authorization = `Bearer ${cleanToken}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+const PRODUCT_STATUS_OPTIONS = ["ACTIVE", "INACTIVE", "OUT_OF_STOCK"];
 
 function AdminProducts() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { isDarkMode, toggleTheme } = useTheme();
 
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const [keyword, setKeyword] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("ALL");
-  const [selectedStatus, setSelectedStatus] = useState("ALL");
-  const [selectedStock, setSelectedStock] = useState("ALL");
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const [deleteModalProduct, setDeleteModalProduct] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
-  const itemsPerPage = 8;
-
-  const savedAdminProfile = JSON.parse(
-    localStorage.getItem("adminProfile") || "{}",
-  );
+  const savedAdminProfile = getSavedAdminProfile();
 
   const adminName =
     savedAdminProfile?.fullName ||
@@ -74,969 +80,903 @@ function AdminProducts() {
 
   const adminProfileImage = savedAdminProfile?.profileImageUrl || "";
 
-  const loadAdminProducts = async () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [products, setProducts] = useState([]);
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedDeleteProduct, setSelectedDeleteProduct] = useState(null);
+
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
+
+  const menus = [
+    {
+      name: "Dashboard",
+      icon: LayoutDashboard,
+      active: location.pathname === "/admin/dashboard",
+      path: "/admin/dashboard",
+    },
+    {
+      name: "Products",
+      icon: Package,
+      active: location.pathname.startsWith("/admin/products"),
+      path: "/admin/products",
+    },
+    {
+      name: "Categories",
+      icon: Tag,
+      active: location.pathname === "/admin/categories",
+      path: "/admin/categories",
+    },
+    {
+      name: "Orders",
+      icon: ShoppingBag,
+      active: location.pathname === "/admin/orders",
+      path: "/admin/orders",
+    },
+    {
+      name: "Payments",
+      icon: CreditCard,
+      active: location.pathname === "/admin/payments",
+      path: "/admin/payments",
+    },
+    {
+      name: "Shipping",
+      icon: Truck,
+      active: location.pathname === "/admin/shipping",
+      path: "/admin/shipping",
+    },
+    {
+      name: "Reports",
+      icon: BarChart3,
+      active: location.pathname === "/admin/reports",
+      path: "/admin/reports",
+    },
+  ];
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, statusFilter, categoryFilter]);
+
+  const fetchProducts = async () => {
     try {
       setLoading(true);
       setError("");
+      setSuccessMessage("");
 
-      const [productData, categoryData] = await Promise.all([
-        getAdminProductsApi(),
-        getAdminCategoriesApi(),
-      ]);
-
-      setProducts(Array.isArray(productData) ? productData : []);
-      setCategories(Array.isArray(categoryData) ? categoryData : []);
+      const response = await productAxios.get("/api/products");
+      setProducts(normalizeListResponse(response.data));
     } catch (err) {
-      console.log(err);
-      setError("Gagal mengambil data produk admin.");
+      console.log("ERROR FETCH PRODUCTS:", err);
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Gagal mengambil data products. Pastikan product-service sudah berjalan.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadAdminProducts();
-  }, []);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [keyword, selectedCategory, selectedStatus, selectedStock]);
-
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const productName = String(product.name || "").toLowerCase();
-      const productBrand = String(product.brand || "").toLowerCase();
-      const categoryName = String(getCategoryName(product)).toLowerCase();
-
-      const searchValue = keyword.toLowerCase();
-
-      const matchKeyword =
-        productName.includes(searchValue) ||
-        productBrand.includes(searchValue) ||
-        categoryName.includes(searchValue);
-
-      const matchCategory =
-        selectedCategory === "ALL" ||
-        String(getCategoryId(product)) === String(selectedCategory);
-
-      const productStatus = getProductStatus(product).value;
-
-      const matchStatus =
-        selectedStatus === "ALL" || productStatus === selectedStatus;
-
-      const stockStatus = getStockStatus(product.stock).value;
-
-      const matchStock =
-        selectedStock === "ALL" || stockStatus === selectedStock;
-
-      return matchKeyword && matchCategory && matchStatus && matchStock;
-    });
-  }, [products, keyword, selectedCategory, selectedStatus, selectedStock]);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredProducts.length / itemsPerPage),
-  );
-
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-
-  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
-
-  const stats = useMemo(() => {
-    const totalProducts = products.length;
-
-    const activeProducts = products.filter(
-      (product) => getProductStatus(product).value === "ACTIVE",
-    ).length;
-
-    const outOfStockProducts = products.filter(
-      (product) => Number(product.stock || 0) <= 0,
-    ).length;
-
-    const lowStockProducts = products.filter((product) => {
-      const stock = Number(product.stock || 0);
-      return stock > 0 && stock <= 5;
-    }).length;
-
-    return {
-      totalProducts,
-      activeProducts,
-      outOfStockProducts,
-      lowStockProducts,
-    };
-  }, [products]);
-
-  const goPrevPage = () => {
-    setCurrentPage((prev) => Math.max(prev - 1, 1));
-  };
-
-  const goNextPage = () => {
-    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
-  };
-
   const handleLogout = () => {
-    logout?.();
+    logout();
     navigate("/login");
   };
 
- const openDeleteModal = (product) => {
-   setDeleteModalProduct(product);
- };
+  const categories = useMemo(() => {
+    const unique = new Set();
 
- const closeDeleteModal = () => {
-   if (deleteLoading) return;
-   setDeleteModalProduct(null);
- };
+    products.forEach((product) => {
+      const categoryName = product.categoryName || product.category?.name;
 
- const confirmDeleteProduct = async () => {
-   if (!deleteModalProduct) return;
+      if (categoryName) {
+        unique.add(categoryName);
+      }
+    });
 
-   try {
-     setDeleteLoading(true);
+    return Array.from(unique).sort();
+  }, [products]);
 
-     await deleteAdminProductApi(deleteModalProduct.id);
+  const normalizedProducts = useMemo(() => {
+    return products.map((product) => ({
+      ...product,
+      _id: product.id || product.productId,
+      _name: product.name || product.productName || "Product",
+      _brand: product.brand || "-",
+      _categoryName:
+        product.categoryName || product.category?.name || "Uncategorized",
+      _price: Number(product.price || product.productPrice || 0),
+      _stock: Number(product.stock || product.qty || 0),
+      _status: String(product.status || "ACTIVE").toUpperCase(),
+      _imageUrl: product.imageUrl || product.image || product.productImage || "",
+      _updatedAt: product.updatedAt || product.createdAt || null,
+    }));
+  }, [products]);
 
-     setProducts((prev) =>
-       prev.filter((item) => String(item.id) !== String(deleteModalProduct.id)),
-     );
+  const filteredProducts = useMemo(() => {
+    return normalizedProducts.filter((product) => {
+      const text = `${product._name} ${product._brand} ${product._categoryName}`.toLowerCase();
 
-     setDeleteModalProduct(null);
-   } catch (err) {
-     console.log(err);
-     alert("Gagal menghapus produk.");
-   } finally {
-     setDeleteLoading(false);
-   }
- };
+      const matchKeyword = text.includes(keyword.toLowerCase());
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-white">
-      {deleteModalProduct && (
-        <ConfirmDeleteModal
-          product={deleteModalProduct}
-          loading={deleteLoading}
-          onClose={closeDeleteModal}
-          onConfirm={confirmDeleteProduct}
-        />
-      )}
-      {sidebarOpen && (
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/60 lg:hidden"
-          aria-label="Tutup sidebar"
-        />
-      )}
+      const matchStatus =
+        statusFilter === "ALL" || product._status === statusFilter;
 
-      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-slate-200 bg-white px-5 py-6 dark:border-slate-800 dark:bg-slate-900 lg:block">
-        <SidebarContent onLogout={handleLogout} />
-      </aside>
+      const matchCategory =
+        categoryFilter === "ALL" || product._categoryName === categoryFilter;
 
-      <aside
-        className={`fixed left-0 top-0 z-50 h-screen w-72 border-r border-slate-200 bg-white px-5 py-6 transition dark:border-slate-800 dark:bg-slate-900 lg:hidden ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="mb-4 flex items-center justify-end">
+      return matchKeyword && matchStatus && matchCategory;
+    });
+  }, [normalizedProducts, keyword, statusFilter, categoryFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage]);
+
+  const totalProducts = normalizedProducts.length;
+  const activeProducts = normalizedProducts.filter(
+    (product) => product._status === "ACTIVE",
+  ).length;
+  const inactiveProducts = normalizedProducts.filter(
+    (product) => product._status === "INACTIVE",
+  ).length;
+  const outOfStockProducts = normalizedProducts.filter(
+    (product) => product._status === "OUT_OF_STOCK" || product._stock <= 0,
+  ).length;
+  const lowStockProducts = normalizedProducts.filter(
+    (product) => product._stock > 0 && product._stock <= 5,
+  ).length;
+
+const openDeleteModal = (product) => {
+  setSelectedDeleteProduct(product);
+  setDeleteModalOpen(true);
+};
+
+const closeDeleteModal = () => {
+  if (deletingId) return;
+
+  setSelectedDeleteProduct(null);
+  setDeleteModalOpen(false);
+};
+
+const handleConfirmDeleteProduct = async () => {
+  const productId = selectedDeleteProduct?._id;
+
+  if (!productId) {
+    setError("ID product tidak ditemukan.");
+    closeDeleteModal();
+    return;
+  }
+
+  try {
+    setDeletingId(productId);
+    setError("");
+    setSuccessMessage("");
+
+    await productAxios.delete(`/api/products/${productId}`);
+    await fetchProducts();
+
+    setSuccessMessage("Product berhasil dihapus.");
+    setSelectedDeleteProduct(null);
+    setDeleteModalOpen(false);
+  } catch (err) {
+    console.log("ERROR DELETE PRODUCT:", err);
+    setError(
+      err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Gagal menghapus product.",
+    );
+  } finally {
+    setDeletingId(null);
+  }
+};
+
+  const resetFilters = () => {
+    setKeyword("");
+    setStatusFilter("ALL");
+    setCategoryFilter("ALL");
+  };
+
+  const goPrevPage = () => {
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  };
+
+  const goNextPage = () => {
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+  };
+
+  const SidebarContent = () => {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between px-5 py-6">
+          <div className="inline-flex cursor-default select-none">
+            <img
+              src={logo}
+              alt="BaenTech Store"
+              className="h-16 w-auto object-contain"
+            />
+          </div>
+
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 dark:border-slate-700 dark:text-white"
+            className="rounded-full border border-slate-200 p-2 text-slate-600 dark:border-slate-700 dark:text-slate-300 lg:hidden"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <SidebarContent
-          onLogout={handleLogout}
-          onNavigate={() => setSidebarOpen(false)}
+        <nav className="mt-3 flex-1 space-y-2 px-4">
+          {menus.map((menu) => {
+            const Icon = menu.icon;
+
+            return (
+              <Link
+                key={menu.name}
+                to={menu.path}
+                onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-4 rounded-2xl px-4 py-3 text-sm font-black transition ${
+                  menu.active
+                    ? "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-400"
+                }`}
+              >
+                <Icon size={21} />
+                <span>{menu.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="px-4 pb-6">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-4 rounded-2xl px-4 py-3 text-sm font-black text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+          >
+            <LogOut size={21} />
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950">
+      {deleteModalOpen && selectedDeleteProduct && (
+        <DeleteProductModal
+          product={selectedDeleteProduct}
+          deleting={deletingId === selectedDeleteProduct._id}
+          onClose={closeDeleteModal}
+          onConfirm={handleConfirmDeleteProduct}
         />
+      )}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        />
+      )}
+
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:block">
+        <SidebarContent />
       </aside>
 
-      <main className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/90 sm:px-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-white lg:hidden"
-              >
-                <Menu size={21} />
-              </button>
+      <aside
+        className={`fixed left-0 top-0 z-50 h-screen w-72 border-r border-slate-200 bg-white transition duration-300 dark:border-slate-800 dark:bg-slate-900 lg:hidden ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <SidebarContent />
+      </aside>
 
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-600 dark:text-blue-400">
-                  Admin Panel
-                </p>
-                <h1 className="text-xl font-black text-slate-950 dark:text-white sm:text-2xl">
-                  Produk
-                </h1>
+      <main className="lg:ml-72">
+        <div className="p-4 sm:p-6 lg:p-8">
+          <div className="sticky top-3 z-30 rounded-[2rem] border border-slate-200 bg-white/85 p-3 shadow-xl shadow-slate-300/40 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/30">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white lg:hidden"
+                >
+                  <Menu size={20} />
+                </button>
+
+                <div>
+                  <h1 className="text-xl font-black text-slate-950 dark:text-white">
+                    Products
+                  </h1>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    Dashboard / Products
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-yellow-300"
+                >
+                  {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
+                </button>
+
+                <Link
+                  to="/admin/profile"
+                  className="hidden items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-2 pr-4 transition hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-blue-500 dark:hover:bg-blue-950/30 sm:flex"
+                >
+                  {adminProfileImage ? (
+                    <img
+                      src={adminProfileImage}
+                      alt={adminName}
+                      className="h-9 w-9 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50">
+                      <Users size={18} />
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-sm font-black text-slate-950 dark:text-white">
+                      {adminName}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Administrator
+                    </p>
+                  </div>
+                </Link>
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-950 dark:text-white sm:text-3xl">
+                Product Management
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                Kelola produk elektronik BaenTech Store, stok, kategori, status,
+                dan gambar produk.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={toggleTheme}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
+                onClick={fetchProducts}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
               >
-                {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
+                <RefreshCw size={18} />
+                Refresh
               </button>
 
               <Link
-                to="/admin/profile"
-                className="hidden items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-2 pr-4 transition hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-blue-500 dark:hover:bg-blue-950/30 sm:flex"
+                to="/admin/products/create"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700"
               >
-                {adminProfileImage ? (
-                  <img
-                    src={adminProfileImage}
-                    alt={adminName}
-                    className="h-9 w-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                  />
-                ) : (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50">
-                    <Users size={18} />
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-sm font-black text-slate-950 dark:text-white">
-                    {adminName}
-                  </p>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    Administrator
-                  </p>
-                </div>
+                <Plus size={18} />
+                Add Product
               </Link>
             </div>
           </div>
-        </header>
 
-        <section className="space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {error && (
+            <div className="mt-6 flex items-start gap-3 rounded-2xl bg-red-100 px-5 py-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mt-6 rounded-2xl bg-green-100 px-5 py-4 text-sm font-bold text-green-700 dark:bg-green-950/40 dark:text-green-300">
+              {successMessage}
+            </div>
+          )}
+
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-5">
             <StatCard
-              title="Total Produk"
-              value={stats.totalProducts}
+              title="Total Products"
+              value={totalProducts}
+              subtitle="Semua produk"
               icon={Package}
-              description="Semua produk"
+              color="blue"
+              loading={loading}
             />
 
             <StatCard
-              title="Produk Aktif"
-              value={stats.activeProducts}
-              icon={Boxes}
-              description="Siap ditampilkan"
+              title="Active"
+              value={activeProducts}
+              subtitle="Produk aktif"
+              icon={CheckCircle2}
+              color="green"
+              loading={loading}
             />
 
             <StatCard
-              title="Stok Menipis"
-              value={stats.lowStockProducts}
+              title="Inactive"
+              value={inactiveProducts}
+              subtitle="Produk nonaktif"
+              icon={XCircle}
+              color="red"
+              loading={loading}
+            />
+
+            <StatCard
+              title="Low Stock"
+              value={lowStockProducts}
+              subtitle="Stok 1 sampai 5"
               icon={AlertTriangle}
-              description="Stok 1 sampai 5"
+              color="orange"
+              loading={loading}
             />
 
             <StatCard
-              title="Stok Habis"
-              value={stats.outOfStockProducts}
-              icon={Tag}
-              description="Perlu restock"
+              title="Out of Stock"
+              value={outOfStockProducts}
+              subtitle="Stok habis"
+              icon={XCircle}
+              color="red"
+              loading={loading}
             />
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <h2 className="text-xl font-black text-slate-950 dark:text-white">
-                  Daftar Produk
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                  Kelola produk yang tampil di BaenTech Store.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={loadAdminProducts}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-800"
-                >
-                  <RefreshCcw size={17} />
-                  Refresh
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("/admin/products/create")}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
-                >
-                  <Plus size={17} />
-                  Tambah Produk
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 xl:grid-cols-[1.3fr_0.8fr_0.8fr_0.8fr]">
-              <div className="relative">
-                <Search
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                />
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="grid gap-3 lg:grid-cols-[1.4fr_0.7fr_0.8fr_0.5fr]">
+              <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-950">
+                <Search size={19} className="text-slate-400" />
                 <input
+                  type="text"
                   value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="Cari nama, brand, atau kategori..."
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-500"
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="Search product, brand, category..."
+                  className="w-full bg-transparent text-sm font-semibold outline-none dark:text-white"
                 />
               </div>
 
               <select
-                value={selectedCategory}
-                onChange={(event) => setSelectedCategory(event.target.value)}
-                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-500"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-12 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
-                <option value="ALL">Semua Kategori</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
+                <option value="ALL">All Status</option>
+                {PRODUCT_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
                   </option>
                 ))}
               </select>
 
               <select
-                value={selectedStatus}
-                onChange={(event) => setSelectedStatus(event.target.value)}
-                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-500"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="h-12 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
-                <option value="ALL">Semua Status</option>
-                <option value="ACTIVE">Aktif</option>
-                <option value="INACTIVE">Tidak Aktif</option>
-                <option value="OUT_OF_STOCK">Out Of Stock</option>
+                <option value="ALL">All Categories</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
               </select>
 
-              <select
-                value={selectedStock}
-                onChange={(event) => setSelectedStock(event.target.value)}
-                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-500"
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="h-12 rounded-full bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-700"
               >
-                <option value="ALL">Semua Stok</option>
-                <option value="READY">Stok Aman</option>
-                <option value="LOW_STOCK">Stok Menipis</option>
-                <option value="OUT_OF_STOCK">Stok Habis</option>
-              </select>
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1120px] text-left">
+                <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+                  <tr>
+                    <th className="px-5 py-4">Product</th>
+                    <th className="px-5 py-4">Brand</th>
+                    <th className="px-5 py-4">Category</th>
+                    <th className="px-5 py-4">Price</th>
+                    <th className="px-5 py-4">Stock</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Updated</th>
+                    <th className="px-5 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {loading && (
+                    <tr>
+                      <td
+                        colSpan="8"
+                        className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
+                      >
+                        Memuat data products...
+                      </td>
+                    </tr>
+                  )}
+
+                  {!loading && paginatedProducts.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="8"
+                        className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
+                      >
+                        Product tidak ditemukan.
+                      </td>
+                    </tr>
+                  )}
+
+                  {!loading &&
+                    paginatedProducts.map((product) => (
+                      <tr
+                        key={product._id}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-950/50"
+                      >
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-4">
+                            <ProductImage product={product} />
+
+                            <div>
+                              <p className="font-black text-slate-950 dark:text-white">
+                                {product._name}
+                              </p>
+                              <p className="mt-0.5 line-clamp-1 max-w-xs text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                {product.description || "Tidak ada deskripsi"}
+                              </p>
+                              <p className="mt-0.5 text-xs font-bold text-slate-400">
+                                ID: {product._id || "-"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <p className="text-sm font-black text-slate-950 dark:text-white">
+                            {product._brand}
+                          </p>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                            {product._categoryName}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <p className="text-sm font-black text-slate-950 dark:text-white">
+                            {formatCurrency(product._price)}
+                          </p>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <StockBadge stock={product._stock} />
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <StatusBadge value={product._status} />
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex items-start gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+                            <CalendarDays
+                              size={16}
+                              className="mt-0.5 text-slate-400"
+                            />
+                            <span>{formatDate(product._updatedAt)}</span>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              to={`/admin/products/edit/${product._id}`}
+                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900 dark:hover:bg-blue-950/30"
+                            >
+                              <Edit3 size={16} />
+                            </Link>
+
+                            <button
+                              type="button"
+                              onClick={() => openDeleteModal(product)}
+                              disabled={deletingId === product._id}
+                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:hover:bg-red-950/30"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
 
-            {loading && (
-              <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-10 text-center dark:border-slate-800 dark:bg-slate-950">
-                <p className="text-sm font-black text-slate-500 dark:text-slate-400">
-                  Memuat data produk...
-                </p>
+            <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 text-sm font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Showing {paginatedProducts.length} of {filteredProducts.length}{" "}
+                products
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={goPrevPage}
+                  disabled={currentPage === 1}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700"
+                >
+                  ‹
+                </button>
+
+                <button
+                  type="button"
+                  className="flex h-9 min-w-9 items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-3 text-sm font-black text-white"
+                >
+                  {currentPage}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={goNextPage}
+                  disabled={currentPage === totalPages}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700"
+                >
+                  ›
+                </button>
               </div>
-            )}
-
-            {error && !loading && (
-              <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900 dark:bg-red-950/30">
-                <p className="text-sm font-black text-red-600 dark:text-red-300">
-                  {error}
-                </p>
-              </div>
-            )}
-
-            {!loading && !error && filteredProducts.length === 0 && (
-              <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-10 text-center dark:border-slate-800 dark:bg-slate-950">
-                <p className="text-sm font-black text-slate-500 dark:text-slate-400">
-                  Produk tidak ditemukan.
-                </p>
-              </div>
-            )}
-
-            {!loading && !error && filteredProducts.length > 0 && (
-              <>
-                <div className="mt-8 hidden overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 lg:block">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[980px] text-left">
-                      <thead className="bg-slate-50 dark:bg-slate-950">
-                        <tr>
-                          <TableHead>Produk</TableHead>
-                          <TableHead>Kategori</TableHead>
-                          <TableHead>Harga</TableHead>
-                          <TableHead>Stok</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Dibuat</TableHead>
-                          <TableHead align="right">Aksi</TableHead>
-                        </tr>
-                      </thead>
-
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                        {paginatedProducts.map((product) => (
-                          <tr
-                            key={product.id}
-                            className="bg-white transition hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60"
-                          >
-                            <td className="px-5 py-4">
-                              <div className="flex items-center gap-4">
-                                <ProductImage product={product} />
-
-                                <div>
-                                  <p className="max-w-[260px] truncate text-sm font-black text-slate-950 dark:text-white">
-                                    {product.name}
-                                  </p>
-                                  <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                                    {product.brand || "Tanpa brand"}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                {getCategoryName(product)}
-                              </span>
-                            </td>
-
-                            <td className="px-5 py-4 text-sm font-black text-slate-900 dark:text-white">
-                              {formatCurrency(product.price)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <StockBadge stock={product.stock} />
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <StatusBadge status={product.status} />
-                            </td>
-
-                            <td className="px-5 py-4 text-sm font-bold text-slate-500 dark:text-slate-400">
-                              {formatDate(product.createdAt)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigate(
-                                      `/admin/products/edit/${product.id}`,
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-600 dark:hover:text-white"
-                                >
-                                  <Pencil size={14} />
-                                  Edit
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => openDeleteModal(product)}
-                                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-600 hover:text-white dark:border-red-800 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-600 dark:hover:text-white"
-                                >
-                                  <Trash2 size={14} />
-                                  Hapus
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="mt-6 grid gap-4 lg:hidden">
-                  {paginatedProducts.map((product) => (
-                    <MobileProductCard
-                      key={product.id}
-                      product={product}
-                      onEdit={() =>
-                        navigate(`/admin/products/edit/${product.id}`)
-                      }
-                      onDelete={() => handleDeleteProduct(product)}
-                    />
-                  ))}
-                </div>
-
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  totalItems={filteredProducts.length}
-                  startIndex={startIndex}
-                  endIndex={endIndex}
-                  onPrev={goPrevPage}
-                  onNext={goNextPage}
-                />
-              </>
-            )}
+            </div>
           </div>
-        </section>
+        </div>
       </main>
     </div>
   );
 }
 
-function SidebarContent({ onLogout, onNavigate }) {
+function ProductImage({ product }) {
+  const imageUrl = getProductImageUrl(product._imageUrl);
+
+  if (!imageUrl) {
+    return (
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+        <Package size={24} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="mb-8">
-        <div className="inline-flex cursor-default select-none">
-          <img
-            src={logo}
-            alt="BaenTech Store"
-            className="h-16 w-auto object-contain"
-          />
+    <img
+      src={imageUrl}
+      alt={product._name}
+      className="h-16 w-16 shrink-0 rounded-2xl border border-slate-200 object-cover dark:border-slate-800"
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  );
+}
+
+function StatCard({ title, value, subtitle, icon: Icon, color, loading }) {
+  const colorMap = {
+    blue: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
+    green:
+      "bg-green-50 text-green-600 dark:bg-green-950/40 dark:text-green-400",
+    orange:
+      "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400",
+    purple:
+      "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400",
+    red: "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400",
+  };
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+            colorMap[color] || colorMap.blue
+          }`}
+        >
+          <Icon size={24} />
         </div>
 
-        <p className="mt-3 text-xs font-black uppercase tracking-[0.25em] text-slate-400">
-          Admin Workspace
+        <div className="h-10 w-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
+      </div>
+
+      <div className="mt-5">
+        <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400 sm:text-sm">
+          {title}
+        </p>
+
+        <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white sm:text-3xl">
+          {loading ? "..." : value}
+        </p>
+
+        <p className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+          {subtitle}
         </p>
       </div>
-
-      <nav className="space-y-2">
-        <AdminNavLink
-          to="/admin/dashboard"
-          icon={LayoutDashboard}
-          label="Dashboard"
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/products"
-          icon={Package}
-          label="Products"
-          active
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/categories"
-          icon={Tag}
-          label="Categories"
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/orders"
-          icon={ShoppingBag}
-          label="Orders"
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/payments"
-          icon={CreditCard}
-          label="Payments"
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/customers"
-          icon={Users}
-          label="Customers"
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/finance"
-          icon={Wallet}
-          label="Finance"
-          onNavigate={onNavigate}
-        />
-
-        <AdminNavLink
-          to="/admin/reports"
-          icon={BarChart3}
-          label="Reports"
-          onNavigate={onNavigate}
-        />
-      </nav>
-
-      <div className="mt-auto">
-        <button
-          type="button"
-          onClick={onLogout}
-          className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/30"
-        >
-          <LogOut size={19} />
-          Logout
-        </button>
-      </div>
-    </div>
-  );
-}
-function AdminNavLink({ to, icon: Icon, label, active, onNavigate }) {
-  return (
-    <Link
-      to={to}
-      onClick={onNavigate}
-      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black transition ${
-        active
-          ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-      }`}
-    >
-      <Icon size={19} />
-      {label}
-    </Link>
-  );
-}
-
-function StatCard({ title, value, description, icon: Icon }) {
-  return (
-    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </p>
-
-          <h3 className="mt-3 text-2xl font-black text-slate-950 dark:text-white sm:text-3xl">
-            {value}
-          </h3>
-
-          <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-            {description}
-          </p>
-        </div>
-
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
-          <Icon size={21} />
-        </div>
-      </div>
     </div>
   );
 }
 
-function TableHead({ children, align = "left" }) {
-  return (
-    <th
-      className={`px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
-  );
-}
+function StatusBadge({ value }) {
+  const status = String(value || "-").toUpperCase();
 
-function ProductImage({ product }) {
-  const imageUrl = getProductImage(product);
+  const isGreen = status === "ACTIVE";
+  const isRed = status === "INACTIVE";
+  const isOrange = status === "OUT_OF_STOCK";
 
-  return (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
-      {imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={product.name}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <Package size={22} className="text-slate-400" />
-      )}
-    </div>
-  );
-}
-
-function MobileProductCard({ product, onEdit, onDelete }) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex gap-4">
-        <ProductImage product={product} />
-
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-black text-slate-950 dark:text-white">
-            {product.name}
-          </h3>
-
-          <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-            {product.brand || "Tanpa brand"} • {getCategoryName(product)}
-          </p>
-
-          <p className="mt-2 text-sm font-black text-blue-600 dark:text-blue-400">
-            {formatCurrency(product.price)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <StockBadge stock={product.stock} />
-        <StatusBadge status={product.status} />
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={onEdit}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-3 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-600 dark:hover:text-white"
-        >
-          <Pencil size={15} />
-          Edit
-        </button>
-
-        <button
-          type="button"
-          onClick={onDelete}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-3 text-xs font-black text-red-700 transition hover:bg-red-600 hover:text-white dark:border-red-800 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-600 dark:hover:text-white"
-        >
-          <Trash2 size={15} />
-          Hapus
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Pagination({
-  currentPage,
-  totalPages,
-  totalItems,
-  startIndex,
-  endIndex,
-  onPrev,
-  onNext,
-}) {
-  const isPrevDisabled = currentPage <= 1;
-  const isNextDisabled = currentPage >= totalPages;
+  const className = isGreen
+    ? "bg-green-100 text-green-600 dark:bg-green-950/40 dark:text-green-300"
+    : isRed
+      ? "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300"
+      : isOrange
+        ? "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300"
+        : "bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300";
 
   return (
-    <div className="mt-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
-        Menampilkan{" "}
-        <span className="text-slate-900 dark:text-white">
-          {totalItems === 0 ? 0 : startIndex + 1}
-        </span>{" "}
-        -{" "}
-        <span className="text-slate-900 dark:text-white">
-          {Math.min(endIndex, totalItems)}
-        </span>{" "}
-        dari{" "}
-        <span className="text-slate-900 dark:text-white">{totalItems}</span>{" "}
-        produk
-      </p>
-
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onPrev}
-          disabled={isPrevDisabled}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-800"
-        >
-          <ChevronLeft size={18} />
-        </button>
-
-        <div className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 dark:border-slate-700 dark:text-white">
-          {currentPage} / {totalPages}
-        </div>
-
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={isNextDisabled}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-800"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
-    </div>
+    <span className={`rounded-full px-3 py-1 text-xs font-black ${className}`}>
+      {status}
+    </span>
   );
 }
 
 function StockBadge({ stock }) {
-  const stockStatus = getStockStatus(stock);
+  const isEmpty = stock <= 0;
+  const isLow = stock > 0 && stock <= 5;
+
+  const className = isEmpty
+    ? "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300"
+    : isLow
+      ? "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300"
+      : "bg-green-100 text-green-600 dark:bg-green-950/40 dark:text-green-300";
 
   return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${stockStatus.className}`}
-    >
-      {stockStatus.label}
+    <span className={`rounded-full px-3 py-1 text-xs font-black ${className}`}>
+      {stock} pcs
     </span>
   );
 }
 
-function StatusBadge({ status }) {
-  const productStatus = getProductStatus({ status });
+function normalizeListResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.products)) return data.products;
+  if (Array.isArray(data?.content)) return data.content;
+  if (Array.isArray(data?.result)) return data.result;
 
-  return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${productStatus.className}`}
-    >
-      {productStatus.label}
-    </span>
-  );
+  return [];
 }
 
-function getCategoryName(product) {
-  if (product.categoryName) {
-    return product.categoryName;
+function getSavedAdminProfile() {
+  try {
+    return JSON.parse(localStorage.getItem("adminProfile") || "{}");
+  } catch {
+    return {};
   }
-
-  if (product.category?.name) {
-    return product.category.name;
-  }
-
-  if (typeof product.category === "string") {
-    return product.category;
-  }
-
-  return "Tanpa Kategori";
-}
-
-function getCategoryId(product) {
-  return product.categoryId || product.category?.id || "";
-}
-
-function getProductImage(product) {
-  const image =
-    product.imageUrl || product.image || product.photo || product.thumbnail;
-
-  if (!image) {
-    return "";
-  }
-
-  if (String(image).startsWith("http")) {
-    return image;
-  }
-
-  return `${productBaseUrl}${image}`;
-}
-
-function getProductStatus(product) {
-  const status = String(product?.status || "UNKNOWN").toUpperCase();
-
-  if (status === "ACTIVE") {
-    return {
-      value: "ACTIVE",
-      label: "Aktif",
-      className:
-        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-    };
-  }
-
-  if (status === "INACTIVE") {
-    return {
-      value: "INACTIVE",
-      label: "Tidak Aktif",
-      className:
-        "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-    };
-  }
-
-  if (status === "DRAFT") {
-    return {
-      value: "DRAFT",
-      label: "Draft",
-      className:
-        "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-    };
-  }
-  if (status === "OUT_OF_STOCK") {
-    return {
-      value: "OUT_OF_STOCK",
-      label: "Out Of Stock",
-      className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
-    };
-  }
-
-  return {
-    value: status,
-    label: status === "UNKNOWN" ? "Unknown" : status,
-    className:
-      "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-  };
-}
-
-function getStockStatus(stock) {
-  const stockValue = Number(stock || 0);
-
-  if (stockValue <= 0) {
-    return {
-      value: "OUT_OF_STOCK",
-      label: "Stok Habis",
-      className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
-    };
-  }
-
-  if (stockValue <= 5) {
-    return {
-      value: "LOW_STOCK",
-      label: `${stockValue} tersisa`,
-      className:
-        "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-    };
-  }
-
-  return {
-    value: "READY",
-    label: `${stockValue} stok`,
-    className:
-      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-  };
 }
 
 function formatCurrency(value) {
-  return `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
 }
 
 function formatDate(value) {
-  if (!value) {
-    return "-";
+  if (!value) return "-";
+
+  try {
+    return new Date(value).toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return value;
   }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return date.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
 }
 
-function ConfirmDeleteModal({ product, loading, onClose, onConfirm }) {
+function getProductImageUrl(imageUrl) {
+  if (!imageUrl) return "";
+
+  if (String(imageUrl).startsWith("http")) {
+    return imageUrl;
+  }
+
+  if (String(imageUrl).startsWith("/")) {
+    return `${productBaseUrl}${imageUrl}`;
+  }
+
+  return imageUrl;
+}
+
+function DeleteProductModal({ product, deleting, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300">
-          <Trash2 size={30} />
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300">
+            <Trash2 size={26} />
+          </div>
+
+          <div className="flex-1">
+            <h3 className="text-xl font-black text-slate-950 dark:text-white">
+              Hapus Product?
+            </h3>
+
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
+              Product{" "}
+              <span className="font-black text-slate-900 dark:text-white">
+                {product._name}
+              </span>{" "}
+              akan dihapus dari sistem. Aksi ini tidak bisa dibatalkan.
+            </p>
+          </div>
         </div>
 
-        <div className="mt-5 text-center">
-          <h3 className="text-xl font-black text-slate-950 dark:text-white">
-            Hapus Produk?
-          </h3>
-
-          <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500 dark:text-slate-400">
-            Produk{" "}
-            <span className="font-black text-slate-900 dark:text-white">
-              {product?.name}
-            </span>{" "}
-            akan dihapus dari BaenTech Store.
+        <div className="mt-6 rounded-2xl bg-slate-50 p-4 dark:bg-slate-950/60">
+          <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">
+            Product Detail
           </p>
 
-          <p className="mt-2 text-xs font-bold text-red-500">
-            Aksi ini tidak bisa dibatalkan.
-          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <ProductImage product={product} />
+
+            <div>
+              <p className="text-sm font-black text-slate-950 dark:text-white">
+                {product._name}
+              </p>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                {product._brand} • {product._categoryName}
+              </p>
+              <p className="text-xs font-bold text-slate-400">
+                ID: {product._id}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3">
+        <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            disabled={loading}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-800"
+            disabled={deleting}
+            className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            Batal
+            Cancel
           </button>
 
           <button
             type="button"
             onClick={onConfirm}
-            disabled={loading}
-            className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={deleting}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-500/30 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Menghapus..." : "Ya, Hapus"}
+            <Trash2 size={17} />
+            {deleting ? "Deleting..." : "Delete"}
           </button>
         </div>
       </div>

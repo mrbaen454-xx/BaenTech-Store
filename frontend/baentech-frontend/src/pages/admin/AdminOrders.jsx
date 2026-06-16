@@ -29,7 +29,33 @@ import {
 import logo from "../../assets/baentech-logo.png";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
-import { getAdminOrdersApi, getAdminOrderByIdApi } from "../../api/orderApi";
+import {
+  getAdminOrdersApi,
+  getAdminOrderByIdApi,
+  updateAdminOrderStatusApi,
+} from "../../api/orderApi";
+import {
+  getAdminPaymentsApi,
+  paymentSuccessApi,
+  paymentFailedApi,
+} from "../../api/paymentApi";
+
+const ORDER_STATUS_OPTIONS = [
+  "PENDING_PAYMENT",
+  "PAID",
+  "PROCESSING",
+  "SHIPPED",
+  "COMPLETED",
+  "CANCELLED",
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  "PENDING",
+  "SUCCESS",
+  "FAILED",
+  "EXPIRED",
+  "CANCELLED",
+];
 
 function AdminOrders() {
   const navigate = useNavigate();
@@ -38,9 +64,7 @@ function AdminOrders() {
   const { user, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
 
-  const savedAdminProfile = JSON.parse(
-    localStorage.getItem("adminProfile") || "{}",
-  );
+  const savedAdminProfile = getSavedAdminProfile();
 
   const adminName =
     savedAdminProfile?.fullName ||
@@ -52,14 +76,21 @@ function AdminOrders() {
   const adminProfileImage = savedAdminProfile?.profileImageUrl || "";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [orders, setOrders] = useState([]);
+  const [payments, setPayments] = useState([]);
+
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [paymentFilter, setPaymentFilter] = useState("ALL");
 
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [updatingPaymentId, setUpdatingPaymentId] = useState(null);
+
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -99,17 +130,23 @@ function AdminOrders() {
       path: "/admin/payments",
     },
     {
-      name: "Customers",
-      icon: Users,
-      active: location.pathname === "/admin/customers",
-      path: "/admin/customers",
+      name: "Shipping",
+      icon: Truck,
+      active: location.pathname === "/admin/shipping",
+      path: "/admin/shipping",
     },
-    {
-      name: "Finance",
-      icon: Wallet,
-      active: location.pathname === "/admin/finance",
-      path: "/admin/finance",
-    },
+    // {
+    //   name: "Customers",
+    //   icon: Users,
+    //   active: location.pathname === "/admin/customers",
+    //   path: "/admin/customers",
+    // },
+    // {
+    //   name: "Finance",
+    //   icon: Wallet,
+    //   active: location.pathname === "/admin/finance",
+    //   path: "/admin/finance",
+    // },
     {
       name: "Reports",
       icon: BarChart3,
@@ -119,28 +156,50 @@ function AdminOrders() {
   ];
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrdersAndPayments();
   }, []);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [keyword, statusFilter, paymentFilter]);
 
-  const fetchOrders = async () => {
+  const fetchOrdersAndPayments = async () => {
     try {
       setLoading(true);
       setError("");
+      setSuccessMessage("");
 
-      const data = await getAdminOrdersApi();
-      setOrders(data);
+      const [ordersData, paymentsData] = await Promise.all([
+        getAdminOrdersApi(),
+        getAdminPaymentsApi(),
+      ]);
+
+      setOrders(normalizeListResponse(ordersData));
+      setPayments(normalizeListResponse(paymentsData));
     } catch (err) {
-      console.log(err);
+      console.log("ERROR FETCH ORDERS/PAYMENTS:", err);
       setError(
         err.response?.data?.message ||
-          "Gagal mengambil data orders. Pastikan order-service sudah berjalan.",
+          err.response?.data?.error ||
+          err.message ||
+          "Gagal mengambil data orders atau payments. Pastikan order-service dan payment-service sudah berjalan.",
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshSilently = async () => {
+    try {
+      const [ordersData, paymentsData] = await Promise.all([
+        getAdminOrdersApi(),
+        getAdminPaymentsApi(),
+      ]);
+
+      setOrders(normalizeListResponse(ordersData));
+      setPayments(normalizeListResponse(paymentsData));
+    } catch (err) {
+      console.log("ERROR REFRESH:", err);
     }
   };
 
@@ -149,22 +208,41 @@ function AdminOrders() {
     navigate("/login");
   };
 
+  const getPaymentForOrder = (order) => {
+    return payments.find((payment) => {
+      const sameOrderId =
+        payment.orderId &&
+        order.id &&
+        String(payment.orderId) === String(order.id);
+
+      const sameOrderNumber =
+        payment.orderNumber &&
+        order.orderNumber &&
+        String(payment.orderNumber) === String(order.orderNumber);
+
+      return sameOrderId || sameOrderNumber;
+    });
+  };
+
+  const getBackendOrderId = (order) => {
+    return order?.id ?? order?.orderId ?? order?.order_id ?? null;
+  };
+
   const getOrderId = (order) => {
     return (
-      order.orderCode ||
       order.orderNumber ||
+      order.orderCode ||
       order.invoiceNumber ||
-      order.code ||
-      `ORD-${order.id}`
+      order.id ||
+      "-"
     );
   };
 
   const getOrderDate = (order) => {
     return (
-      order.orderDate ||
       order.createdAt ||
+      order.orderDate ||
       order.created_at ||
-      order.date ||
       order.updatedAt ||
       null
     );
@@ -172,10 +250,12 @@ function AdminOrders() {
 
   const getCustomerName = (order) => {
     return (
+      order.recipientName ||
       order.customerName ||
       order.fullName ||
       order.name ||
       order.userName ||
+      order.customer?.name ||
       order.user?.fullName ||
       order.user?.name ||
       "Customer"
@@ -184,9 +264,10 @@ function AdminOrders() {
 
   const getCustomerEmail = (order) => {
     return (
-      order.customerEmail ||
       order.email ||
+      order.customerEmail ||
       order.userEmail ||
+      order.customer?.email ||
       order.user?.email ||
       "-"
     );
@@ -194,17 +275,18 @@ function AdminOrders() {
 
   const getCustomerPhone = (order) => {
     return (
-      order.customerPhone ||
       order.phoneNumber ||
+      order.customerPhone ||
       order.phone ||
-      order.user?.phoneNumber ||
+      order.noHp ||
       "-"
     );
   };
 
   const getTotalAmount = (order) => {
     return Number(
-      order.totalAmount ||
+      order.totalPrice ||
+        order.totalAmount ||
         order.total ||
         order.grandTotal ||
         order.amount ||
@@ -213,27 +295,10 @@ function AdminOrders() {
     );
   };
 
-  const getPaymentStatus = (order) => {
-    return (
-      order.paymentStatus ||
-      order.payment?.status ||
-      order.statusPayment ||
-      "PENDING"
-    );
-  };
-
-  const getPaymentMethod = (order) => {
-    return (
-      order.paymentMethod ||
-      order.payment?.method ||
-      order.paymentType ||
-      order.payment?.paymentMethod ||
-      "-"
-    );
-  };
-
   const getOrderStatus = (order) => {
-    return order.orderStatus || order.status || "PENDING";
+    return String(
+      order.status || order.orderStatus || "PENDING_PAYMENT",
+    ).toUpperCase();
   };
 
   const getOrderItems = (order) => {
@@ -258,26 +323,204 @@ function AdminOrders() {
     return Number(order.totalItems || order.itemCount || order.quantity || 0);
   };
 
-  const normalizedOrders = useMemo(() => {
-    return orders.map((order) => ({
+  const getAllowedOrderStatuses = (currentStatus) => {
+    const status = String(currentStatus || "").toUpperCase();
+
+    if (status === "PENDING_PAYMENT") {
+      return ["PENDING_PAYMENT", "CANCELLED"];
+    }
+
+    if (status === "PAID") {
+      return ["PAID", "PROCESSING", "CANCELLED"];
+    }
+
+    if (status === "PROCESSING") {
+      return ["PROCESSING", "SHIPPED", "CANCELLED"];
+    }
+
+    if (status === "SHIPPED") {
+      return ["SHIPPED", "COMPLETED"];
+    }
+
+    if (status === "COMPLETED") {
+      return ["COMPLETED"];
+    }
+
+    if (status === "CANCELLED") {
+      return ["CANCELLED"];
+    }
+
+    return ORDER_STATUS_OPTIONS;
+  };
+
+  const patchOrderStatus = (order, newStatus, apiData) => {
+    const returnedOrder =
+      apiData?.data && typeof apiData.data === "object"
+        ? apiData.data
+        : apiData?.order && typeof apiData.order === "object"
+          ? apiData.order
+          : apiData && typeof apiData === "object"
+            ? apiData
+            : {};
+
+    return {
       ...order,
-      _orderId: getOrderId(order),
-      _customerName: getCustomerName(order),
-      _customerEmail: getCustomerEmail(order),
-      _customerPhone: getCustomerPhone(order),
-      _totalAmount: getTotalAmount(order),
-      _paymentStatus: getPaymentStatus(order),
-      _paymentMethod: getPaymentMethod(order),
-      _orderStatus: getOrderStatus(order),
-      _orderDate: getOrderDate(order),
-      _itemsCount: getItemsCount(order),
-    }));
-  }, [orders]);
+      ...returnedOrder,
+      status: returnedOrder.status || returnedOrder.orderStatus || newStatus,
+      orderStatus:
+        returnedOrder.orderStatus || returnedOrder.status || newStatus,
+    };
+  };
+
+  const handleUpdateOrderStatus = async (order, newStatus) => {
+    const backendOrderId = order._backendOrderId || getBackendOrderId(order);
+
+    if (!backendOrderId) {
+      setError("ID order tidak ditemukan, status tidak bisa diubah.");
+      return;
+    }
+
+    const currentStatus = String(order._orderStatus || "").toUpperCase();
+
+    if (currentStatus === "PENDING_PAYMENT" && newStatus === "PAID") {
+      setError(
+        "Untuk membuat order menjadi PAID, gunakan tombol Payment Success. Alurnya: payment sukses dulu, lalu order menjadi PAID.",
+      );
+      return;
+    }
+
+    try {
+      setUpdatingOrderId(backendOrderId);
+      setError("");
+      setSuccessMessage("");
+
+      const data = await updateAdminOrderStatusApi(backendOrderId, newStatus);
+
+      setOrders((prevOrders) =>
+        prevOrders.map((item) => {
+          const itemId = getBackendOrderId(item);
+
+          if (String(itemId) === String(backendOrderId)) {
+            return patchOrderStatus(item, newStatus, data);
+          }
+
+          return item;
+        }),
+      );
+
+      setSelectedOrder((prevOrder) => {
+        if (!prevOrder) return prevOrder;
+
+        const selectedId = getBackendOrderId(prevOrder);
+
+        if (String(selectedId) === String(backendOrderId)) {
+          return patchOrderStatus(prevOrder, newStatus, data);
+        }
+
+        return prevOrder;
+      });
+
+      setSuccessMessage(`Status order berhasil diubah menjadi ${newStatus}.`);
+    } catch (err) {
+      console.log("ERROR UPDATE ORDER STATUS:", err);
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          err.message ||
+          "Gagal mengubah status order.",
+      );
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  const handlePaymentSuccess = async (payment) => {
+    if (!payment?.id) {
+      setError("ID payment tidak ditemukan.");
+      return;
+    }
+
+    try {
+      setUpdatingPaymentId(payment.id);
+      setError("");
+      setSuccessMessage("");
+
+      await paymentSuccessApi(payment.id);
+      await refreshSilently();
+
+      setSuccessMessage(
+        "Payment berhasil dikonfirmasi SUCCESS. Order akan berubah menjadi PAID sesuai alur backend.",
+      );
+    } catch (err) {
+      console.log("ERROR PAYMENT SUCCESS:", err);
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          err.message ||
+          "Gagal mengonfirmasi payment success.",
+      );
+    } finally {
+      setUpdatingPaymentId(null);
+    }
+  };
+
+  const handlePaymentFailed = async (payment) => {
+    if (!payment?.id) {
+      setError("ID payment tidak ditemukan.");
+      return;
+    }
+
+    try {
+      setUpdatingPaymentId(payment.id);
+      setError("");
+      setSuccessMessage("");
+
+      await paymentFailedApi(payment.id);
+      await refreshSilently();
+
+      setSuccessMessage("Payment berhasil diubah menjadi FAILED.");
+    } catch (err) {
+      console.log("ERROR PAYMENT FAILED:", err);
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          err.message ||
+          "Gagal mengubah payment menjadi failed.",
+      );
+    } finally {
+      setUpdatingPaymentId(null);
+    }
+  };
+
+  const normalizedOrders = useMemo(() => {
+    return orders.map((order) => {
+      const payment = getPaymentForOrder(order);
+
+      return {
+        ...order,
+        _payment: payment || null,
+        _backendOrderId: getBackendOrderId(order),
+        _orderId: getOrderId(order),
+        _customerName: getCustomerName(order),
+        _customerEmail: getCustomerEmail(order),
+        _customerPhone: getCustomerPhone(order),
+        _totalAmount: getTotalAmount(order),
+        _paymentStatus: payment?.status
+          ? String(payment.status).toUpperCase()
+          : "NO_PAYMENT",
+        _paymentMethod: payment?.paymentMethod || "-",
+        _paymentNumber: payment?.paymentNumber || "-",
+        _orderStatus: getOrderStatus(order),
+        _orderDate: getOrderDate(order),
+        _itemsCount: getItemsCount(order),
+      };
+    });
+  }, [orders, payments]);
 
   const filteredOrders = useMemo(() => {
     return normalizedOrders.filter((order) => {
       const text =
-        `${order._orderId} ${order._customerName} ${order._customerEmail} ${order._customerPhone}`.toLowerCase();
+        `${order._orderId} ${order._customerName} ${order._customerEmail} ${order._customerPhone} ${order._paymentNumber}`.toLowerCase();
 
       const matchKeyword = text.includes(keyword.toLowerCase());
 
@@ -305,36 +548,28 @@ function AdminOrders() {
 
   const totalOrders = normalizedOrders.length;
 
-  const completedOrders = normalizedOrders.filter((order) =>
-    ["COMPLETED", "DELIVERED", "SUCCESS", "DONE"].includes(
-      String(order._orderStatus).toUpperCase(),
-    ),
+  const completedOrders = normalizedOrders.filter(
+    (order) => order._orderStatus === "COMPLETED",
+  ).length;
+
+  const paidOrders = normalizedOrders.filter(
+    (order) => order._orderStatus === "PAID",
   ).length;
 
   const processingOrders = normalizedOrders.filter((order) =>
-    ["PENDING", "PROCESSING", "WAITING", "CREATED"].includes(
-      String(order._orderStatus).toUpperCase(),
-    ),
+    ["PROCESSING", "PAID"].includes(order._orderStatus),
   ).length;
 
-  const shippingOrders = normalizedOrders.filter((order) =>
-    ["SHIPPED", "SHIPPING", "ON_DELIVERY"].includes(
-      String(order._orderStatus).toUpperCase(),
-    ),
+  const shippingOrders = normalizedOrders.filter(
+    (order) => order._orderStatus === "SHIPPED",
   ).length;
 
-  const cancelledOrders = normalizedOrders.filter((order) =>
-    ["CANCELLED", "CANCELED", "FAILED"].includes(
-      String(order._orderStatus).toUpperCase(),
-    ),
+  const cancelledOrders = normalizedOrders.filter(
+    (order) => order._orderStatus === "CANCELLED",
   ).length;
 
   const totalRevenue = normalizedOrders
-    .filter((order) =>
-      ["PAID", "SUCCESS", "SETTLEMENT", "COMPLETED"].includes(
-        String(order._paymentStatus).toUpperCase(),
-      ),
-    )
+    .filter((order) => order._paymentStatus === "SUCCESS")
     .reduce((sum, order) => sum + Number(order._totalAmount || 0), 0);
 
   const openDetailModal = async (order) => {
@@ -343,16 +578,27 @@ function AdminOrders() {
       setSelectedOrder(order);
       setDetailModalOpen(true);
 
-      if (order.id) {
-        const detail = await getAdminOrderByIdApi(order.id);
+      const backendOrderId = order._backendOrderId || getBackendOrderId(order);
+
+      if (backendOrderId) {
+        const detail = await getAdminOrderByIdApi(backendOrderId);
+
+        const detailData =
+          detail?.data && typeof detail.data === "object"
+            ? detail.data
+            : detail;
 
         setSelectedOrder({
           ...order,
-          ...detail,
+          ...detailData,
+          _payment: order._payment,
+          _paymentStatus: order._paymentStatus,
+          _paymentMethod: order._paymentMethod,
+          _paymentNumber: order._paymentNumber,
         });
       }
     } catch (err) {
-      console.log(err);
+      console.log("ERROR DETAIL ORDER:", err);
       setSelectedOrder(order);
     } finally {
       setDetailLoading(false);
@@ -531,14 +777,15 @@ function AdminOrders() {
                 Order Management
               </h2>
               <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Pantau semua pesanan pelanggan BaenTech Store.
+                Alur backend: checkout → payment pending → payment success →
+                order PAID → proses pengiriman.
               </p>
             </div>
 
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={fetchOrders}
+                onClick={fetchOrdersAndPayments}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
               >
                 <RefreshCw size={18} />
@@ -557,8 +804,15 @@ function AdminOrders() {
           </div>
 
           {error && (
-            <div className="mt-6 rounded-2xl bg-red-100 px-5 py-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
-              {error}
+            <div className="mt-6 flex items-start gap-3 rounded-2xl bg-red-100 px-5 py-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mt-6 rounded-2xl bg-green-100 px-5 py-4 text-sm font-bold text-green-700 dark:bg-green-950/40 dark:text-green-300">
+              {successMessage}
             </div>
           )}
 
@@ -573,10 +827,10 @@ function AdminOrders() {
             />
 
             <StatCard
-              title="Completed"
-              value={completedOrders}
-              subtitle="Pesanan selesai"
-              icon={CheckCircle2}
+              title="Paid"
+              value={paidOrders}
+              subtitle="Sudah dibayar"
+              icon={CreditCard}
               color="green"
               loading={loading}
             />
@@ -584,7 +838,7 @@ function AdminOrders() {
             <StatCard
               title="Processing"
               value={processingOrders}
-              subtitle="Sedang diproses"
+              subtitle="Siap/proses kirim"
               icon={Clock3}
               color="orange"
               loading={loading}
@@ -593,7 +847,7 @@ function AdminOrders() {
             <StatCard
               title="Shipping"
               value={shippingOrders}
-              subtitle="Dalam pengiriman"
+              subtitle="Sedang dikirim"
               icon={Truck}
               color="purple"
               loading={loading}
@@ -617,7 +871,7 @@ function AdminOrders() {
                   type="text"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="Search order id, customer, email..."
+                  placeholder="Search order number, customer, email, payment number..."
                   className="w-full bg-transparent text-sm font-semibold outline-none dark:text-white"
                 />
               </div>
@@ -627,14 +881,12 @@ function AdminOrders() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="h-12 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
-                <option value="ALL">All Status</option>
-                <option value="PENDING">Pending</option>
-                <option value="PROCESSING">Processing</option>
-                <option value="SHIPPED">Shipped</option>
-                <option value="SHIPPING">Shipping</option>
-                <option value="DELIVERED">Delivered</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
+                <option value="ALL">All Order Status</option>
+                {ORDER_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -643,28 +895,31 @@ function AdminOrders() {
                 className="h-12 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 <option value="ALL">All Payment</option>
-                <option value="PENDING">Pending</option>
-                <option value="PAID">Paid</option>
-                <option value="SUCCESS">Success</option>
-                <option value="FAILED">Failed</option>
-                <option value="EXPIRED">Expired</option>
+                <option value="NO_PAYMENT">No Payment</option>
+                {PAYMENT_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-left">
+              <table className="w-full min-w-[1280px] text-left">
                 <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
                   <tr>
-                    <th className="px-5 py-4">Order ID</th>
+                    <th className="px-5 py-4">Order</th>
                     <th className="px-5 py-4">Customer</th>
-                    <th className="px-5 py-4">Total Amount</th>
+                    <th className="px-5 py-4">Total</th>
                     <th className="px-5 py-4">Payment</th>
-                    <th className="px-5 py-4">Status</th>
-                    <th className="px-5 py-4">Order Date</th>
+                    <th className="px-5 py-4">Payment Action</th>
+                    <th className="px-5 py-4">Order Status</th>
+                    <th className="px-5 py-4">Update Order</th>
+                    <th className="px-5 py-4">Date</th>
                     <th className="px-5 py-4">Items</th>
-                    <th className="px-5 py-4 text-right">Actions</th>
+                    <th className="px-5 py-4 text-right">Detail</th>
                   </tr>
                 </thead>
 
@@ -672,10 +927,10 @@ function AdminOrders() {
                   {loading && (
                     <tr>
                       <td
-                        colSpan="8"
+                        colSpan="10"
                         className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
                       >
-                        Memuat data orders...
+                        Memuat data orders dan payments...
                       </td>
                     </tr>
                   )}
@@ -683,7 +938,7 @@ function AdminOrders() {
                   {!loading && paginatedOrders.length === 0 && (
                     <tr>
                       <td
-                        colSpan="8"
+                        colSpan="10"
                         className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
                       >
                         Order tidak ditemukan.
@@ -692,89 +947,158 @@ function AdminOrders() {
                   )}
 
                   {!loading &&
-                    paginatedOrders.map((order) => (
-                      <tr
-                        key={order.id || order._orderId}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-950/50"
-                      >
-                        <td className="px-5 py-4">
-                          <p className="font-black text-slate-950 dark:text-white">
-                            #{order._orderId}
-                          </p>
-                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                            ID: {order.id || "-"}
-                          </p>
-                        </td>
+                    paginatedOrders.map((order) => {
+                      const payment = order._payment;
+                      const allowedStatuses = getAllowedOrderStatuses(
+                        order._orderStatus,
+                      );
+                      const paymentIsPending =
+                        order._paymentStatus === "PENDING";
+                      const canUpdateOrder =
+                        order._backendOrderId &&
+                        !["COMPLETED", "CANCELLED"].includes(
+                          order._orderStatus,
+                        );
 
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/40">
-                              <Users size={18} />
+                      return (
+                        <tr
+                          key={order._backendOrderId || order._orderId}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-950/50"
+                        >
+                          <td className="px-5 py-4">
+                            <p className="font-black text-slate-950 dark:text-white">
+                              #{order._orderId}
+                            </p>
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                              ID: {order._backendOrderId || "-"}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                                <Users size={18} />
+                              </div>
+
+                              <div>
+                                <p className="font-black text-slate-950 dark:text-white">
+                                  {order._customerName}
+                                </p>
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                  {order._customerEmail}
+                                </p>
+                              </div>
                             </div>
+                          </td>
 
-                            <div>
-                              <p className="font-black text-slate-950 dark:text-white">
-                                {order._customerName}
+                          <td className="px-5 py-4">
+                            <p className="text-sm font-black text-slate-950 dark:text-white">
+                              {formatCurrency(order._totalAmount)}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="space-y-1">
+                              <StatusBadge value={order._paymentStatus} />
+                              <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                {order._paymentMethod}
                               </p>
-                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                {order._customerEmail}
-                              </p>
+                              {payment?.paymentNumber && (
+                                <p className="text-xs font-bold text-slate-400">
+                                  {payment.paymentNumber}
+                                </p>
+                              )}
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <p className="text-sm font-black text-slate-950 dark:text-white">
-                            {formatCurrency(order._totalAmount)}
-                          </p>
-                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            {order._paymentMethod}
-                          </p>
-                        </td>
+                          <td className="px-5 py-4">
+                            {paymentIsPending && payment ? (
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  type="button"
+                                  disabled={updatingPaymentId === payment.id}
+                                  onClick={() => handlePaymentSuccess(payment)}
+                                  className="rounded-xl bg-green-600 px-3 py-2 text-xs font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Success
+                                </button>
 
-                        <td className="px-5 py-4">
-                          <StatusBadge
-                            value={order._paymentStatus}
-                            type="payment"
-                          />
-                        </td>
+                                <button
+                                  type="button"
+                                  disabled={updatingPaymentId === payment.id}
+                                  onClick={() => handlePaymentFailed(payment)}
+                                  className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Failed
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                {payment ? "No action" : "Belum bayar"}
+                              </p>
+                            )}
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <StatusBadge
-                            value={order._orderStatus}
-                            type="order"
-                          />
-                        </td>
+                          <td className="px-5 py-4">
+                            <StatusBadge value={order._orderStatus} />
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <div className="flex items-start gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
-                            <CalendarDays
-                              size={16}
-                              className="mt-0.5 text-slate-400"
-                            />
-                            <span>{formatDate(order._orderDate)}</span>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
-                            {order._itemsCount} items
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => openDetailModal(order)}
-                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900 dark:hover:bg-blue-950/30"
+                          <td className="px-5 py-4">
+                            <select
+                              value={order._orderStatus}
+                              disabled={
+                                !canUpdateOrder ||
+                                updatingOrderId === order._backendOrderId
+                              }
+                              onChange={(e) =>
+                                handleUpdateOrderStatus(order, e.target.value)
+                              }
+                              className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                             >
-                              <Eye size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {allowedStatuses.map((status) => (
+                                <option key={status} value={status}>
+                                  {status}
+                                </option>
+                              ))}
+                            </select>
+
+                            {updatingOrderId === order._backendOrderId && (
+                              <p className="mt-1 text-xs font-bold text-blue-500">
+                                Updating...
+                              </p>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex items-start gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+                              <CalendarDays
+                                size={16}
+                                className="mt-0.5 text-slate-400"
+                              />
+                              <span>{formatDate(order._orderDate)}</span>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                              {order._itemsCount} items
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => openDetailModal(order)}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 text-blue-600 transition hover:bg-blue-50 dark:border-blue-900 dark:hover:bg-blue-950/30"
+                              >
+                                <Eye size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -818,7 +1142,7 @@ function AdminOrders() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-black text-slate-950 dark:text-white">
-                  Total Paid Revenue
+                  Total Success Payment Revenue
                 </p>
                 <p className="mt-1 text-2xl font-black text-blue-600 dark:text-blue-400">
                   {formatCurrency(totalRevenue)}
@@ -826,8 +1150,7 @@ function AdminOrders() {
               </div>
 
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Total ini dihitung dari order dengan payment status PAID /
-                SUCCESS / SETTLEMENT / COMPLETED.
+                Total dihitung dari payment dengan status SUCCESS.
               </p>
             </div>
           </div>
@@ -880,20 +1203,14 @@ function StatCard({ title, value, subtitle, icon: Icon, color, loading }) {
   );
 }
 
-function StatusBadge({ value, type }) {
+function StatusBadge({ value }) {
   const status = String(value || "-").toUpperCase();
 
-  const isGreen = [
-    "PAID",
-    "SUCCESS",
-    "SETTLEMENT",
-    "COMPLETED",
-    "DELIVERED",
-  ].includes(status);
-
+  const isGreen = ["PAID", "SUCCESS", "COMPLETED"].includes(status);
   const isRed = ["FAILED", "CANCELLED", "CANCELED", "EXPIRED"].includes(status);
-
-  const isPurple = ["SHIPPED", "SHIPPING", "ON_DELIVERY"].includes(status);
+  const isPurple = ["SHIPPED"].includes(status);
+  const isBlue = ["PROCESSING"].includes(status);
+  const isGray = ["NO_PAYMENT"].includes(status);
 
   const className = isGreen
     ? "bg-green-100 text-green-600 dark:bg-green-950/40 dark:text-green-300"
@@ -901,7 +1218,11 @@ function StatusBadge({ value, type }) {
       ? "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300"
       : isPurple
         ? "bg-purple-100 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300"
-        : "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300";
+        : isBlue
+          ? "bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300"
+          : isGray
+            ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            : "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-black ${className}`}>
@@ -917,33 +1238,49 @@ function OrderDetailModal({ order, loading, onClose }) {
       ? order.orderItems
       : Array.isArray(order.details)
         ? order.details
-        : [];
+        : Array.isArray(order.products)
+          ? order.products
+          : [];
+
+  const payment = order._payment || null;
 
   const orderId =
-    order.orderCode ||
     order.orderNumber ||
+    order.orderCode ||
     order.invoiceNumber ||
     order.code ||
-    `ORD-${order.id}`;
+    order.id ||
+    "-";
 
   const customerName =
+    order.recipientName ||
     order.customerName ||
     order.fullName ||
     order.name ||
     order.userName ||
+    order.customer?.name ||
     order.user?.fullName ||
     order.user?.name ||
     "Customer";
 
   const customerEmail =
-    order.customerEmail ||
     order.email ||
+    order.customerEmail ||
     order.userEmail ||
+    order.customer?.email ||
     order.user?.email ||
     "-";
 
+  const phoneNumber =
+    order.phoneNumber ||
+    order.customerPhone ||
+    order.phone ||
+    order.noHp ||
+    "-";
+
   const totalAmount = Number(
-    order.totalAmount ||
+    order.totalPrice ||
+      order.totalAmount ||
       order.total ||
       order.grandTotal ||
       order.amount ||
@@ -951,12 +1288,19 @@ function OrderDetailModal({ order, loading, onClose }) {
       0,
   );
 
-  const orderStatus = order.orderStatus || order.status || "PENDING";
-  const paymentStatus =
-    order.paymentStatus ||
-    order.payment?.status ||
-    order.statusPayment ||
-    "PENDING";
+  const orderStatus = order.status || order.orderStatus || "PENDING_PAYMENT";
+  const paymentStatus = payment?.status || order._paymentStatus || "NO_PAYMENT";
+  const paymentMethod = payment?.paymentMethod || order._paymentMethod || "-";
+  const paymentNumber = payment?.paymentNumber || order._paymentNumber || "-";
+
+  const address = [
+    order.shippingAddress,
+    order.city,
+    order.province,
+    order.postalCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
@@ -989,21 +1333,25 @@ function OrderDetailModal({ order, loading, onClose }) {
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <DetailItem label="Customer" value={customerName} />
           <DetailItem label="Email" value={customerEmail} />
+          <DetailItem label="Phone" value={phoneNumber} />
           <DetailItem
             label="Total Amount"
             value={formatCurrency(totalAmount)}
           />
+          <DetailItem label="Payment Number" value={paymentNumber} />
+          <DetailItem label="Payment Method" value={paymentMethod} />
           <DetailItem
             label="Tanggal Order"
             value={formatDate(order.createdAt || order.orderDate)}
           />
+          <DetailItem label="Alamat" value={address || "-"} />
 
           <div>
             <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">
               Payment
             </p>
             <div className="mt-2">
-              <StatusBadge value={paymentStatus} type="payment" />
+              <StatusBadge value={paymentStatus} />
             </div>
           </div>
 
@@ -1012,7 +1360,7 @@ function OrderDetailModal({ order, loading, onClose }) {
               Status Order
             </p>
             <div className="mt-2">
-              <StatusBadge value={orderStatus} type="order" />
+              <StatusBadge value={orderStatus} />
             </div>
           </div>
         </div>
@@ -1031,30 +1379,41 @@ function OrderDetailModal({ order, loading, onClose }) {
               </p>
             )}
 
-            {items.map((item, index) => (
-              <div
-                key={item.id || index}
-                className="flex items-center justify-between gap-4 px-4 py-4"
-              >
-                <div>
+            {items.map((item, index) => {
+              const quantity = Number(item.quantity || item.qty || 1);
+              const price = Number(
+                item.price ||
+                  item.productPrice ||
+                  item.product?.price ||
+                  item.subTotal ||
+                  item.subtotal ||
+                  item.total ||
+                  0,
+              );
+
+              return (
+                <div
+                  key={item.id || index}
+                  className="flex items-center justify-between gap-4 px-4 py-4"
+                >
+                  <div>
+                    <p className="text-sm font-black text-slate-950 dark:text-white">
+                      {item.productName ||
+                        item.name ||
+                        item.product?.name ||
+                        `Item ${index + 1}`}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      Qty: {quantity}
+                    </p>
+                  </div>
+
                   <p className="text-sm font-black text-slate-950 dark:text-white">
-                    {item.productName ||
-                      item.name ||
-                      item.product?.name ||
-                      `Item ${index + 1}`}
-                  </p>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                    Qty: {item.quantity || item.qty || 1}
+                    {formatCurrency(price)}
                   </p>
                 </div>
-
-                <p className="text-sm font-black text-slate-950 dark:text-white">
-                  {formatCurrency(
-                    Number(item.price || item.subtotal || item.total || 0),
-                  )}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1073,6 +1432,25 @@ function DetailItem({ label, value }) {
       </p>
     </div>
   );
+}
+
+function normalizeListResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.orders)) return data.orders;
+  if (Array.isArray(data?.payments)) return data.payments;
+  if (Array.isArray(data?.content)) return data.content;
+  if (Array.isArray(data?.result)) return data.result;
+
+  return [];
+}
+
+function getSavedAdminProfile() {
+  try {
+    return JSON.parse(localStorage.getItem("adminProfile") || "{}");
+  } catch {
+    return {};
+  }
 }
 
 function formatCurrency(value) {
