@@ -28,9 +28,19 @@ const normalizeList = (body) => {
   return [];
 };
 
+const normalizeObject = (body) => {
+  if (body?.data) return body.data;
+  return body;
+};
+
 export const getAdminProductsApi = async () => {
   const response = await adminAxios.get("/api/products");
   return normalizeList(response.data);
+};
+
+export const getAdminProductByIdApi = async (id) => {
+  const response = await adminAxios.get(`/api/products/${id}`);
+  return normalizeObject(response.data);
 };
 
 export const getAdminCategoriesApi = async () => {
@@ -40,12 +50,12 @@ export const getAdminCategoriesApi = async () => {
 
 export const createAdminProductApi = async (productData) => {
   const response = await adminAxios.post("/api/products", productData);
-  return response.data;
+  return normalizeObject(response.data);
 };
 
 export const updateAdminProductApi = async (id, productData) => {
   const response = await adminAxios.put(`/api/products/${id}`, productData);
-  return response.data;
+  return normalizeObject(response.data);
 };
 
 export const deleteAdminProductApi = async (id) => {
@@ -57,7 +67,29 @@ export const uploadAdminProductImageApi = async (id, file) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await adminAxios.post(`/api/products/${id}/image`, formData);
+  const response = await adminAxios.post(
+    `/api/products/${id}/image`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
+  );
 
+  return normalizeObject(response.data);
+};
+export const createAdminCategoryApi = async (categoryData) => {
+  const response = await adminAxios.post("/api/categories", categoryData);
+  return normalizeObject(response.data);
+};
+
+export const updateAdminCategoryApi = async (id, categoryData) => {
+  const response = await adminAxios.put(`/api/categories/${id}`, categoryData);
+  return normalizeObject(response.data);
+};
+
+export const deleteAdminCategoryApi = async (id) => {
+  const response = await adminAxios.delete(`/api/categories/${id}`);
   return response.data;
 };

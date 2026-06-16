@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import org.springframework.http.HttpMethod;
-
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -29,20 +29,24 @@ public class SecurityConfig {
         try {
             http
                     .csrf(csrf -> csrf.disable())
+                    .cors(Customizer.withDefaults())
                     .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                     .authorizeHttpRequests(auth -> auth
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/actuator/**").permitAll()
 
-                            // USER dan ADMIN boleh checkout, lihat order pribadi, detail, dan cancel
-                            .requestMatchers(HttpMethod.POST, "/api/orders/checkout").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.GET, "/api/orders/my-orders").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.GET, "/api/orders/{id}").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.PUT, "/api/orders/{id}/cancel").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.PUT, "/api/orders/{id}/complete").hasAnyRole("USER", "ADMIN")
-
-                            // Khusus ADMIN
+                            // ADMIN - taruh di atas /api/orders/{id}
                             .requestMatchers(HttpMethod.GET, "/api/orders/admin").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/orders/{id}/status").hasRole("ADMIN")
+
+                            // USER
+                            .requestMatchers(HttpMethod.POST, "/api/orders/checkout").hasRole("USER")
+                            .requestMatchers(HttpMethod.GET, "/api/orders/my-orders").hasRole("USER")
+                            .requestMatchers(HttpMethod.PUT, "/api/orders/{id}/cancel").hasRole("USER")
+                            .requestMatchers(HttpMethod.PUT, "/api/orders/{id}/complete").hasRole("USER")
+
+                            // USER dan ADMIN
+                            .requestMatchers(HttpMethod.GET, "/api/orders/{id}").hasAnyRole("USER", "ADMIN")
 
                             .anyRequest().authenticated())
                     .exceptionHandling(exception -> exception

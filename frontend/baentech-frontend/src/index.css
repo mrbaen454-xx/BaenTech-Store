@@ -64,3 +64,31 @@ body {
 .dark .shadow-2xl {
   box-shadow: none;
 }
+
+.admin-input {
+  height: 3rem;
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  outline: none;
+}
+
+.admin-input:focus {
+  border-color: #3b82f6;
+  background: #ffffff;
+}
+
+.dark .admin-input {
+  border-color: #334155;
+  background: #020617;
+  color: #ffffff;
+}
+
+.dark .admin-input:focus {
+  border-color: #3b82f6;
+}

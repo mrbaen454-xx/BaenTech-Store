@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import {
   AlertTriangle,
   BarChart3,
-  Boxes,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   DollarSign,
-  ImageIcon,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -17,10 +16,9 @@ import {
   Pencil,
   Plus,
   Search,
-  Settings,
   ShoppingBag,
   Sun,
-  Tags,
+  Tag,
   Trash2,
   TrendingUp,
   Users,
@@ -40,59 +38,10 @@ import { getIncomeChartApi } from "../../api/reportApi";
 
 const productBaseUrl = import.meta.env.VITE_PRODUCT_API_BASE_URL;
 
-const menus = [
-  {
-    name: "Dashboard",
-    icon: LayoutDashboard,
-    active: true,
-    path: "/admin/dashboard",
-  },
-  {
-    name: "Products",
-    icon: Package,
-    active: false,
-    path: "/admin/products",
-  },
-  {
-    name: "Categories",
-    icon: Tags,
-    active: false,
-    path: "/admin/categories",
-  },
-  {
-    name: "Product Images",
-    icon: ImageIcon,
-    active: false,
-    path: "/admin/product-images",
-  },
-  {
-    name: "Inventory",
-    icon: Boxes,
-    active: false,
-    path: "/admin/inventory",
-  },
-  {
-    name: "Users",
-    icon: Users,
-    active: false,
-    path: "/admin/users",
-  },
-  {
-    name: "Reports",
-    icon: BarChart3,
-    active: false,
-    path: "/admin/reports",
-  },
-  {
-    name: "Settings",
-    icon: Settings,
-    active: false,
-    path: "/admin/settings",
-  },
-];
-
 function AdminDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const { user, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
 
@@ -105,14 +54,80 @@ function AdminDashboard() {
 
   const [openMenuId, setOpenMenuId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+
   const [chartPeriod, setChartPeriod] = useState("WEEK");
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
+
+  const [deleteModalProduct, setDeleteModalProduct] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const itemsPerPage = 5;
 
-  const adminName = user?.fullName || user?.name || user?.email || "Admin User";
+  const menus = [
+    {
+      name: "Dashboard",
+      icon: LayoutDashboard,
+      active: location.pathname === "/admin/dashboard",
+      path: "/admin/dashboard",
+    },
+    {
+      name: "Products",
+      icon: Package,
+      active: location.pathname.startsWith("/admin/products"),
+      path: "/admin/products",
+    },
+    {
+      name: "Categories",
+      icon: Tag,
+      active: location.pathname === "/admin/categories",
+      path: "/admin/categories",
+    },
+    {
+      name: "Orders",
+      icon: ShoppingBag,
+      active: location.pathname === "/admin/orders",
+      path: "/admin/orders",
+    },
+    {
+      name: "Payments",
+      icon: CreditCard,
+      active: location.pathname === "/admin/payments",
+      path: "/admin/payments",
+    },
+    {
+      name: "Customers",
+      icon: Users,
+      active: location.pathname === "/admin/customers",
+      path: "/admin/customers",
+    },
+    {
+      name: "Finance",
+      icon: Wallet,
+      active: location.pathname === "/admin/finance",
+      path: "/admin/finance",
+    },
+    {
+      name: "Reports",
+      icon: BarChart3,
+      active: location.pathname === "/admin/reports",
+      path: "/admin/reports",
+    },
+  ];
 
+const savedAdminProfile = JSON.parse(
+  localStorage.getItem("adminProfile") || "{}",
+);
+
+const adminName =
+  savedAdminProfile?.fullName ||
+  user?.fullName ||
+  user?.name ||
+  user?.email ||
+  "Admin User";
+
+const adminProfileImage = savedAdminProfile?.profileImageUrl || "";
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -276,21 +291,37 @@ function AdminDashboard() {
     navigate("/login");
   };
 
-  const handleDeleteProduct = async (product) => {
-    const confirmDelete = window.confirm(
-      `Yakin ingin menghapus produk "${product.name}"?`,
-    );
+  const openDeleteModal = (product) => {
+    setDeleteModalProduct(product);
+    setOpenMenuId(null);
+  };
 
-    if (!confirmDelete) return;
+  const closeDeleteModal = () => {
+    if (deleteLoading) return;
+    setDeleteModalProduct(null);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteModalProduct) return;
 
     try {
-      await deleteAdminProductApi(product.id);
+      setDeleteLoading(true);
 
-      setProducts((prev) => prev.filter((item) => item.id !== product.id));
+      await deleteAdminProductApi(deleteModalProduct.id);
+
+      setProducts((prev) =>
+        prev.filter(
+          (item) => String(item.id) !== String(deleteModalProduct.id),
+        ),
+      );
+
+      setDeleteModalProduct(null);
       setOpenMenuId(null);
     } catch (err) {
       console.log(err);
       setError("Gagal menghapus produk.");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -306,15 +337,16 @@ function AdminDashboard() {
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between px-5 py-6">
-          <Link className="inline-flex">
+          <div className="inline-flex cursor-default select-none">
             <img
               src={logo}
               alt="BaenTech Store"
               className="h-16 w-auto object-contain"
             />
-          </Link>
+          </div>
 
           <button
+            type="button"
             onClick={() => setSidebarOpen(false)}
             className="rounded-full border border-slate-200 p-2 text-slate-600 dark:border-slate-700 dark:text-slate-300 lg:hidden"
           >
@@ -346,6 +378,7 @@ function AdminDashboard() {
 
         <div className="px-4 pb-6">
           <button
+            type="button"
             onClick={handleLogout}
             className="flex w-full items-center gap-4 rounded-2xl px-4 py-3 text-sm font-black text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
           >
@@ -359,6 +392,15 @@ function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950">
+      {deleteModalProduct && (
+        <ConfirmDeleteModal
+          product={deleteModalProduct}
+          loading={deleteLoading}
+          onClose={closeDeleteModal}
+          onConfirm={confirmDeleteProduct}
+        />
+      )}
+
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
@@ -366,12 +408,10 @@ function AdminDashboard() {
         />
       )}
 
-      {/* SIDEBAR DESKTOP */}
       <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:block">
         <SidebarContent />
       </aside>
 
-      {/* SIDEBAR MOBILE */}
       <aside
         className={`fixed left-0 top-0 z-50 h-screen w-72 border-r border-slate-200 bg-white transition duration-300 dark:border-slate-800 dark:bg-slate-900 lg:hidden ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -380,14 +420,13 @@ function AdminDashboard() {
         <SidebarContent />
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="lg:ml-72">
         <div className="p-4 sm:p-6 lg:p-8">
-          {/* TOPBAR */}
           <div className="sticky top-3 z-30 rounded-[2rem] border border-slate-200 bg-white/85 p-3 shadow-xl shadow-slate-300/40 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/30">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={() => setSidebarOpen(true)}
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white lg:hidden"
                 >
@@ -412,16 +451,28 @@ function AdminDashboard() {
 
               <div className="flex items-center gap-2 sm:gap-3">
                 <button
+                  type="button"
                   onClick={toggleTheme}
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-yellow-300"
                 >
                   {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
                 </button>
 
-                <div className="hidden items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-2 pr-4 dark:border-slate-700 dark:bg-slate-950 sm:flex">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50">
-                    <Users size={18} />
-                  </div>
+                <Link
+                  to="/admin/profile"
+                  className="hidden items-center gap-3 rounded-full border border-slate-200 bg-white py-1.5 pl-2 pr-4 transition hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-blue-500 dark:hover:bg-blue-950/30 sm:flex"
+                >
+                  {adminProfileImage ? (
+                    <img
+                      src={adminProfileImage}
+                      alt={adminName}
+                      className="h-9 w-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50">
+                      <Users size={18} />
+                    </div>
+                  )}
 
                   <div>
                     <p className="text-sm font-black text-slate-950 dark:text-white">
@@ -431,11 +482,10 @@ function AdminDashboard() {
                       Administrator
                     </p>
                   </div>
-                </div>
+                </Link>
               </div>
             </div>
 
-            {/* MOBILE SEARCH */}
             <div className="mt-3 flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-950 md:hidden">
               <Search size={19} className="text-slate-400" />
               <input
@@ -448,7 +498,6 @@ function AdminDashboard() {
             </div>
           </div>
 
-          {/* HEADER */}
           <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-black text-slate-950 dark:text-white sm:text-3xl">
@@ -474,7 +523,6 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* STATS */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
             <StatCard
               title="Total Produk"
@@ -489,7 +537,7 @@ function AdminDashboard() {
               title="Total Kategori"
               value={totalCategories}
               subtitle="Kategori yang tersedia"
-              icon={Tags}
+              icon={Tag}
               color="purple"
               loading={loading}
             />
@@ -513,9 +561,7 @@ function AdminDashboard() {
             />
           </div>
 
-          {/* CONTENT GRID */}
           <div className="mt-6 grid gap-6 xl:grid-cols-[1.7fr_1fr]">
-            {/* PRODUCTS TABLE */}
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
                 <h3 className="text-lg font-black text-slate-950 dark:text-white">
@@ -615,7 +661,9 @@ function AdminDashboard() {
                               className={`rounded-full px-3 py-1 text-xs font-black ${
                                 product.status === "INACTIVE"
                                   ? "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300"
-                                  : "bg-green-100 text-green-600 dark:bg-green-950/40 dark:text-green-300"
+                                  : product.status === "OUT_OF_STOCK"
+                                    ? "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300"
+                                    : "bg-green-100 text-green-600 dark:bg-green-950/40 dark:text-green-300"
                               }`}
                             >
                               {product.status || "ACTIVE"}
@@ -632,6 +680,7 @@ function AdminDashboard() {
                               </Link>
 
                               <button
+                                type="button"
                                 onClick={() =>
                                   setOpenMenuId((prev) =>
                                     prev === product.id ? null : product.id,
@@ -653,7 +702,8 @@ function AdminDashboard() {
                                   </Link>
 
                                   <button
-                                    onClick={() => handleDeleteProduct(product)}
+                                    type="button"
+                                    onClick={() => openDeleteModal(product)}
                                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
                                   >
                                     <Trash2 size={15} />
@@ -677,6 +727,7 @@ function AdminDashboard() {
 
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={goPrevPage}
                     disabled={currentPage === 1}
                     className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700"
@@ -684,11 +735,15 @@ function AdminDashboard() {
                     <ChevronLeft size={16} />
                   </button>
 
-                  <button className="flex h-9 min-w-9 items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-3 text-sm font-black text-white">
+                  <button
+                    type="button"
+                    className="flex h-9 min-w-9 items-center justify-center rounded-xl border border-blue-600 bg-blue-600 px-3 text-sm font-black text-white"
+                  >
                     {currentPage}
                   </button>
 
                   <button
+                    type="button"
                     onClick={goNextPage}
                     disabled={currentPage === totalPages}
                     className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700"
@@ -699,7 +754,6 @@ function AdminDashboard() {
               </div>
             </div>
 
-            {/* RIGHT PANEL */}
             <div className="space-y-6">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="mb-5 flex items-center justify-between">
@@ -736,7 +790,7 @@ function AdminDashboard() {
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
-                            <Tags size={18} />
+                            <Tag size={18} />
                           </div>
 
                           <p className="text-sm font-black text-slate-700 dark:text-slate-200">
@@ -759,7 +813,7 @@ function AdminDashboard() {
                   </h3>
 
                   <Link
-                    to="/admin/inventory"
+                    to="/admin/products"
                     className="text-sm font-black text-blue-600 dark:text-blue-400"
                   >
                     View all
@@ -805,7 +859,6 @@ function AdminDashboard() {
             </div>
           </div>
 
-          {/* CHART SECTION */}
           <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -819,6 +872,7 @@ function AdminDashboard() {
 
               <div className="flex flex-wrap gap-2">
                 <button
+                  type="button"
                   onClick={() => setChartPeriod("WEEK")}
                   className={`rounded-full px-4 py-2 text-sm font-black ${
                     chartPeriod === "WEEK"
@@ -830,6 +884,7 @@ function AdminDashboard() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setChartPeriod("MONTH")}
                   className={`rounded-full px-4 py-2 text-sm font-black ${
                     chartPeriod === "MONTH"
@@ -841,6 +896,7 @@ function AdminDashboard() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setChartPeriod("YEAR")}
                   className={`rounded-full px-4 py-2 text-sm font-black ${
                     chartPeriod === "YEAR"
@@ -854,7 +910,6 @@ function AdminDashboard() {
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-[1.7fr_1fr]">
-              {/* CHART */}
               <div className="overflow-x-auto rounded-3xl bg-slate-50 p-4 dark:bg-slate-950/60 sm:p-5">
                 {chartLoading && (
                   <div className="flex h-[300px] items-center justify-center">
@@ -898,7 +953,6 @@ function AdminDashboard() {
                   )}
               </div>
 
-              {/* SUMMARY */}
               <div className="grid gap-4">
                 <SummaryCard
                   title="Total Pemasukan"
@@ -1022,6 +1076,56 @@ function SummaryCard({ title, value, icon: Icon, color }) {
           <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
             {value}
           </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeleteModal({ product, loading, onClose, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300">
+          <Trash2 size={30} />
+        </div>
+
+        <div className="mt-5 text-center">
+          <h3 className="text-xl font-black text-slate-950 dark:text-white">
+            Hapus Produk?
+          </h3>
+
+          <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500 dark:text-slate-400">
+            Produk{" "}
+            <span className="font-black text-slate-900 dark:text-white">
+              {product?.name}
+            </span>{" "}
+            akan dihapus dari BaenTech Store.
+          </p>
+
+          <p className="mt-2 text-xs font-bold text-red-500">
+            Aksi ini tidak bisa dibatalkan.
+          </p>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-800"
+          >
+            Batal
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Menghapus..." : "Ya, Hapus"}
+          </button>
         </div>
       </div>
     </div>

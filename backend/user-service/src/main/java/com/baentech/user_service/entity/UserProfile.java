@@ -2,6 +2,7 @@ package com.baentech.user_service.entity;
 
 import java.time.LocalDateTime;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -33,7 +34,8 @@ public class UserProfile {
     private String fullName;
 
     private String phoneNumber;
-
+    
+    @Column(name = "profile_image_url", columnDefinition = "TEXT")
     private String profileImageUrl;
 
     private LocalDateTime createdAt;

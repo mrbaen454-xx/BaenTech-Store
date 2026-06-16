@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 import org.springframework.http.HttpMethod;
 
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -29,21 +30,25 @@ public class SecurityConfig {
         try {
             http
                     .csrf(csrf -> csrf.disable())
+                    .cors(Customizer.withDefaults())
                     .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                     .authorizeHttpRequests(auth -> auth
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/actuator/**").permitAll()
-
-                            // USER dan ADMIN
-                            .requestMatchers(HttpMethod.POST, "/api/payments/create").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.GET, "/api/payments/order/{orderId}")
-                            .hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.PUT, "/api/payments/{id}/success").hasAnyRole("USER", "ADMIN")
-                            .requestMatchers(HttpMethod.PUT, "/api/payments/{id}/failed").hasAnyRole("USER", "ADMIN")
 
                             // ADMIN
                             .requestMatchers(HttpMethod.GET, "/api/payments/admin").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/payments/{id}/success").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/payments/{id}/failed").hasRole("ADMIN")
+
+                            // USER
+                            .requestMatchers(HttpMethod.POST, "/api/payments/create").hasRole("USER")
+                            .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasRole("USER")
+                            .requestMatchers(HttpMethod.GET, "/api/payments/order/{orderId}").hasRole("USER")
+                            .requestMatchers(HttpMethod.PUT, "/api/payments/{id}/cancel").hasRole("USER")
+
+                            // Detail payment
+                            .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole("USER", "ADMIN")
 
                             .anyRequest().authenticated())
                     .exceptionHandling(exception -> exception
@@ -60,7 +65,6 @@ public class SecurityConfig {
                                         }
                                         """);
                             })
-
                             .accessDeniedHandler((request, response, accessDeniedException) -> {
                                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                                 response.setContentType("application/json");

@@ -168,12 +168,12 @@ public class PaymentServiceImpl implements PaymentService {
             Payment payment = paymentRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Payment tidak ditemukan"));
 
-            if (!payment.getEmail().equals(email)) {
-                throw new RuntimeException("Anda tidak memiliki akses ke payment ini");
-            }
-
             if (payment.getStatus() == PaymentStatus.SUCCESS) {
                 throw new RuntimeException("Payment sudah berhasil, tidak bisa digagalkan");
+            }
+            if (payment.getStatus() == PaymentStatus.CANCELLED
+                    || payment.getStatus() == PaymentStatus.EXPIRED) {
+                throw new RuntimeException("Payment sudah tidak bisa diproses");
             }
 
             payment.setStatus(PaymentStatus.FAILED);
