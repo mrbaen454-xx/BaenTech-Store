@@ -1,15 +1,15 @@
 import axios from "axios";
 
-const productBaseUrl =
-  import.meta.env.VITE_PRODUCT_API_BASE_URL ||
+const cartBaseUrl =
+  import.meta.env.VITE_CART_API_BASE_URL ||
   import.meta.env.VITE_API_BASE_URL ||
   "";
 
-const productAxios = axios.create({
-  baseURL: productBaseUrl,
+const cartAxios = axios.create({
+  baseURL: cartBaseUrl,
 });
 
-productAxios.interceptors.request.use(
+cartAxios.interceptors.request.use(
   (config) => {
     const token =
       localStorage.getItem("token") ||
@@ -30,54 +30,69 @@ productAxios.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-const normalizeList = (body) => {
-  if (Array.isArray(body)) return body;
-  if (Array.isArray(body?.data)) return body.data;
-  if (Array.isArray(body?.content)) return body.content;
-  if (Array.isArray(body?.products)) return body.products;
-  if (Array.isArray(body?.result)) return body.result;
-
-  return [];
-};
-
 const normalizeObject = (body) => {
   if (body?.data) return body.data;
+  if (body?.result) return body.result;
   return body || {};
 };
 
-export const getUserProductsApi = async () => {
-  const response = await productAxios.get("/api/products");
-  return normalizeList(response.data);
+const normalizeItems = (cart) => {
+  if (Array.isArray(cart?.items)) return cart.items;
+  if (Array.isArray(cart?.cartItems)) return cart.cartItems;
+  if (Array.isArray(cart?.data?.items)) return cart.data.items;
+  return [];
 };
 
-export const getUserProductByIdApi = async (productId) => {
-  const response = await productAxios.get(`/api/products/${productId}`);
+const normalizeCart = (body) => {
+  const cart = normalizeObject(body);
+  const items = normalizeItems(cart);
+
+  const totalItems =
+    cart.totalItems ??
+    items.reduce((total, item) => total + Number(item.quantity || 0), 0);
+
+  const totalPrice =
+    cart.totalPrice ??
+    items.reduce((total, item) => total + Number(item.subTotal || 0), 0);
+
+  return {
+    ...cart,
+    items,
+    totalItems: Number(totalItems || 0),
+    totalPrice: Number(totalPrice || 0),
+  };
+};
+
+export const getMyCartApi = async () => {
+  const response = await cartAxios.get("/api/carts");
+  return normalizeCart(response.data);
+};
+
+export const addCartItemApi = async (productId, quantity = 1) => {
+  const response = await cartAxios.post("/api/carts/items", {
+    productId: Number(productId),
+    quantity: Number(quantity),
+  });
+
+  return normalizeCart(response.data);
+};
+
+export const updateCartItemApi = async (itemId, quantity) => {
+  const response = await cartAxios.put(`/api/carts/items/${itemId}`, {
+    quantity: Number(quantity),
+  });
+
+  return normalizeCart(response.data);
+};
+
+export const deleteCartItemApi = async (itemId) => {
+  const response = await cartAxios.delete(`/api/carts/items/${itemId}`);
   return normalizeObject(response.data);
 };
 
-export const searchUserProductsApi = async (keyword) => {
-  const response = await productAxios.get("/api/products/search", {
-    params: { keyword },
-  });
-
-  return normalizeList(response.data);
+export const clearCartApi = async () => {
+  const response = await cartAxios.delete("/api/carts/clear");
+  return normalizeObject(response.data);
 };
 
-export const getUserProductsByCategoryApi = async (categoryId) => {
-  const response = await productAxios.get(
-    `/api/products/category/${categoryId}`,
-  );
-  return normalizeList(response.data);
-};
-
-export const getUserProductsByBrandApi = async (brand) => {
-  const response = await productAxios.get(`/api/products/brand/${brand}`);
-  return normalizeList(response.data);
-};
-
-export const getUserCategoriesApi = async () => {
-  const response = await productAxios.get("/api/categories");
-  return normalizeList(response.data);
-};
-
-export default productAxios;
+export default cartAxios;
