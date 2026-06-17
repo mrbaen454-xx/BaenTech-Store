@@ -146,7 +146,7 @@ function Home() {
       </section>
       {/* KATEGORI */}
       <section
-        id="kategori"
+        id="categories"
         className="bg-slate-100/70 py-10 dark:bg-slate-950 sm:py-16"
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6">

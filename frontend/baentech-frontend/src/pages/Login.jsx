@@ -10,32 +10,100 @@ const normalizeRole = (role) => {
   if (!role) return "";
 
   if (Array.isArray(role)) {
-    return normalizeRole(role[0]);
+    const firstRole = role[0];
+
+    if (typeof firstRole === "string") {
+      return normalizeRole(firstRole);
+    }
+
+    if (firstRole?.authority) {
+      return normalizeRole(firstRole.authority);
+    }
+
+    if (firstRole?.role) {
+      return normalizeRole(firstRole.role);
+    }
+
+    return "";
   }
 
-  return String(role).replace("ROLE_", "").toUpperCase();
+  if (typeof role === "object") {
+    return normalizeRole(role.authority || role.role || role.name || "");
+  }
+
+  return String(role).replace("ROLE_", "").trim().toUpperCase();
 };
 
-const getRoleFromToken = (token) => {
+const decodeJwtPayload = (token) => {
   try {
-    if (!token) return "";
+    if (!token) return {};
 
     const cleanToken = token.startsWith("Bearer ")
       ? token.replace("Bearer ", "")
       : token;
 
-    const payload = JSON.parse(atob(cleanToken.split(".")[1]));
+    const base64Url = cleanToken.split(".")[1];
 
-    return (
-      payload.role ||
+    if (!base64Url) return {};
+
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((char) => {
+          return `%${`00${char.charCodeAt(0).toString(16)}`.slice(-2)}`;
+        })
+        .join(""),
+    );
+
+    return JSON.parse(jsonPayload);
+  } catch {
+    return {};
+  }
+};
+
+const getTokenFromResultOrStorage = (result) => {
+  return (
+    result?.token ||
+    result?.accessToken ||
+    result?.jwt ||
+    result?.data?.token ||
+    result?.data?.accessToken ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("jwt") ||
+    localStorage.getItem("authToken") ||
+    ""
+  );
+};
+
+const getRoleFromLoginResult = (result) => {
+  return normalizeRole(
+    result?.role ||
+      result?.roles ||
+      result?.authority ||
+      result?.authorities ||
+      result?.user?.role ||
+      result?.user?.roles ||
+      result?.data?.role ||
+      result?.data?.roles ||
+      result?.data?.user?.role ||
+      result?.data?.user?.roles ||
+      "",
+  );
+};
+
+const getRoleFromToken = (token) => {
+  const payload = decodeJwtPayload(token);
+
+  return normalizeRole(
+    payload.role ||
       payload.roles ||
       payload.authority ||
       payload.authorities ||
-      ""
-    );
-  } catch {
-    return "";
-  }
+      "",
+  );
 };
 
 const getFromPath = (from) => {
@@ -63,12 +131,11 @@ const resolveRedirectPath = (role, fromPath) => {
     return "/admin/dashboard";
   }
 
-  // USER tidak boleh diarahkan ke halaman admin
+  // Selain ADMIN, jangan pernah masuk route admin
   if (fromPath && fromPath.startsWith("/admin")) {
     return "/";
   }
 
-  // USER juga jangan balik ke halaman auth
   if (
     fromPath === "/login" ||
     fromPath === "/register" ||
@@ -78,6 +145,16 @@ const resolveRedirectPath = (role, fromPath) => {
   }
 
   return fromPath || "/";
+};
+
+const clearOldAuthSession = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("jwt");
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("role");
+  localStorage.removeItem("user");
+  localStorage.removeItem("adminProfile");
 };
 
 function Login() {
@@ -108,22 +185,32 @@ function Login() {
     setLoading(true);
 
     try {
-      const user = await login(form.email, form.password);
+      // Penting: hapus role/token lama dulu biar akun USER tidak kebaca ADMIN lama
+      clearOldAuthSession();
 
-      const token =
-        localStorage.getItem("token") ||
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("jwt") ||
-        localStorage.getItem("authToken");
+      const loginResult = await login(form.email, form.password);
 
-      const roleFromUser =
-        user?.role || user?.roles || user?.authority || user?.authorities || "";
+      const token = getTokenFromResultOrStorage(loginResult);
 
       const roleFromToken = getRoleFromToken(token);
+      const roleFromResult = getRoleFromLoginResult(loginResult);
 
-      const finalRole = normalizeRole(roleFromUser || roleFromToken);
+      // Prioritas role dari token baru, baru fallback ke response login
+      const finalRole = normalizeRole(roleFromToken || roleFromResult);
+
+      if (token) {
+        localStorage.setItem(
+          "token",
+          token.startsWith("Bearer ") ? token.replace("Bearer ", "") : token,
+        );
+      }
 
       localStorage.setItem("role", finalRole);
+
+      console.log("LOGIN RESULT:", loginResult);
+      console.log("TOKEN ROLE:", roleFromToken);
+      console.log("RESPONSE ROLE:", roleFromResult);
+      console.log("FINAL ROLE:", finalRole);
 
       const redirectPath = resolveRedirectPath(finalRole, fromPath);
 
