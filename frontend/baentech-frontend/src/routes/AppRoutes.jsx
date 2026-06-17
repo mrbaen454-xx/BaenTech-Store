@@ -15,19 +15,57 @@ import AdminPayments from "../pages/admin/AdminPayments";
 import AdminShipping from "../pages/admin/AdminShipping";
 import AdminReports from "../pages/admin/AdminReports";
 
-import UserHome from "../pages/user/UserHome";
-
-import ProtectedRoute from "../components/ProtectedRoute";
+import ProtectedRoute, {
+  GuestRoute,
+  UserOnlyRoute,
+} from "../components/ProtectedRoute";
 
 function AppRoutes() {
   return (
     <Routes>
-      {/* PUBLIC */}
-      <Route path="/" element={<Home />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/products" element={<Products />} />
-      <Route path="/products/:id" element={<ProductDetail />} />
+      {/* PUBLIC + USER ONLY */}
+      <Route
+        path="/"
+        element={
+          <UserOnlyRoute>
+            <Home />
+          </UserOnlyRoute>
+        }
+      />
+      <Route
+        path="/products"
+        element={
+          <UserOnlyRoute>
+            <Products />
+          </UserOnlyRoute>
+        }
+      />
+      <Route
+        path="/products/:id"
+        element={
+          <UserOnlyRoute>
+            <ProductDetail />
+          </UserOnlyRoute>
+        }
+      />
+
+      {/* GUEST ONLY */}
+      <Route
+        path="/login"
+        element={
+          <GuestRoute>
+            <Login />
+          </GuestRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <GuestRoute>
+            <Register />
+          </GuestRoute>
+        }
+      />
 
       {/* ADMIN */}
       <Route
@@ -62,7 +100,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
+      <Route
+        path="/admin/products/add"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
+            <AdminProductForm />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin/products/edit/:id"
         element={
@@ -111,10 +156,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
-      {/* User */}
-      <Route path="/" element={<UserHome />} />
-      <Route path="/products" element={<UserHome />} />
     </Routes>
   );
 }
