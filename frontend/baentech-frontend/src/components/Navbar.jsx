@@ -11,9 +11,9 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import logo from "../assets/baentech-logo.png";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import BrandLogo from "./BrandLogo";
 
 const normalizeRole = (role) => {
   if (!role) return "";
@@ -216,13 +216,7 @@ function Navbar() {
     <header className="sticky top-0 z-50 px-2 pt-2">
       <div className="mx-auto flex max-w-[1300px] items-center justify-between rounded-[2rem] border border-slate-200 bg-white/90 px-5 py-3 shadow-xl shadow-slate-300/40 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/30">
         {" "}
-        <Link to="/" className="flex items-center gap-2" onClick={closeMobile}>
-          <img
-            src={logo}
-            alt="BaenTech Store"
-            className="h-9 w-auto object-contain"
-          />
-        </Link>
+        <BrandLogo onClick={closeMobile} />
         {showCenterMenu && (
           <nav className="hidden items-center gap-7 lg:flex">
             <Link
@@ -357,18 +351,14 @@ function Navbar() {
 
       {mobileOpen && (
         <div className="fixed inset-0 z-[999] bg-slate-950/70 backdrop-blur-sm lg:hidden">
-          <div className="ml-auto h-full w-80 max-w-[86%] bg-slate-950 p-5 shadow-2xl">
+          <div className="ml-auto flex h-full w-80 max-w-[86%] flex-col bg-slate-950 p-5 shadow-2xl">
             <div className="flex items-center justify-between">
-              <img
-                src={logo}
-                alt="BaenTech Store"
-                className="h-10 w-auto object-contain"
-              />
+              <BrandLogo onClick={closeMobile} dark />
 
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-full border border-slate-700 p-2 text-white"
+                className="rounded-full border border-slate-700 p-2 text-white transition hover:border-blue-500 hover:text-blue-400"
               >
                 <X size={18} />
               </button>
@@ -378,22 +368,22 @@ function Navbar() {
               <Link
                 to="/profile"
                 onClick={closeMobile}
-                className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900 p-3"
+                className="mt-6 flex min-w-0 items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900 p-3 transition hover:border-blue-500 hover:bg-blue-950/30"
               >
                 {userPhoto ? (
                   <img
                     src={userPhoto}
                     alt={userName}
-                    className="h-11 w-11 rounded-full border border-slate-700 object-cover"
+                    className="h-11 w-11 shrink-0 rounded-full border border-slate-700 object-cover"
                   />
                 ) : (
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-950/50 text-blue-300">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-950/50 text-blue-300">
                     <UserRound size={20} />
                   </div>
                 )}
 
-                <div>
-                  <p className="font-black text-white">{userName}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-black text-white">{userName}</p>
                   <p className="text-xs font-semibold text-slate-400">
                     Customer
                   </p>
@@ -401,7 +391,7 @@ function Navbar() {
               </Link>
             )}
 
-            <nav className="mt-8 space-y-2">
+            <nav className="mt-8 flex-1 space-y-2 overflow-y-auto">
               {showCenterMenu && (
                 <>
                   <MobileLink to="/products" onClick={closeMobile}>
@@ -439,11 +429,11 @@ function Navbar() {
               )}
             </nav>
 
-            <div className="mt-8 border-t border-slate-800 pt-5">
+            <div className="mt-5 border-t border-slate-800 pt-5">
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white"
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white transition hover:border-blue-500 hover:text-blue-400"
               >
                 {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
                 Theme
@@ -454,7 +444,7 @@ function Navbar() {
                   <Link
                     to="/login"
                     onClick={closeMobile}
-                    className="rounded-2xl border border-blue-600 px-5 py-3 text-center text-sm font-black text-blue-400"
+                    className="rounded-2xl border border-blue-600 px-5 py-3 text-center text-sm font-black text-blue-400 transition hover:bg-blue-600 hover:text-white"
                   >
                     Login
                   </Link>
@@ -462,7 +452,7 @@ function Navbar() {
                   <Link
                     to="/register"
                     onClick={closeMobile}
-                    className="rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-black text-white"
+                    className="rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-blue-700"
                   >
                     Register
                   </Link>
@@ -471,7 +461,7 @@ function Navbar() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-700"
                 >
                   <LogOut size={18} />
                   Logout

@@ -16,6 +16,7 @@ import {
 import Navbar from "../components/Navbar";
 import ProductCard from "../components/ProductCard";
 import { getProductsApi } from "../api/productApi";
+import BrandLogo from "../components/BrandLogo";
 
 const categories = [
   { name: "Laptop", icon: Laptop },
@@ -298,12 +299,8 @@ function Home() {
       <footer id="footer" className="bg-slate-950 text-white">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-5 px-4 py-8 sm:px-6 sm:py-12 md:grid-cols-4 md:gap-10">
           <div>
-            <div className="inline-flex rounded-xl bg-white p-1.5 sm:rounded-2xl sm:p-2">
-              <img
-                src={logo}
-                alt="BaenTech Store"
-                className="h-10 w-auto object-contain sm:h-20"
-              />
+            <div className="inline-flex">
+              <BrandLogo dark />
             </div>
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-300 sm:mt-5 sm:text-sm">

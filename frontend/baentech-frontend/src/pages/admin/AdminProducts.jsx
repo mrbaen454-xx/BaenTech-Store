@@ -11,12 +11,14 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquareText,
   Moon,
   Package,
   Plus,
   RefreshCw,
   Search,
   ShoppingBag,
+  Star,
   Sun,
   Tag,
   Trash2,
@@ -26,7 +28,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import logo from "../../assets/baentech-logo.png";
+import BrandLogo from "../../components/BrandLogo";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
@@ -158,7 +160,48 @@ function AdminProducts() {
       setSuccessMessage("");
 
       const response = await productAxios.get("/api/products");
-      setProducts(normalizeListResponse(response.data));
+      const productList = normalizeListResponse(response.data);
+
+      const productsWithReviewSummary = await Promise.all(
+        productList.map(async (product) => {
+          const productId = product.id || product.productId;
+
+          if (!productId) {
+            return {
+              ...product,
+              averageRating: 0,
+              totalReviews: 0,
+            };
+          }
+
+          try {
+            const summaryResponse = await productAxios.get(
+              `/api/products/${productId}/reviews/summary`,
+            );
+
+            const summary = normalizeObjectResponse(summaryResponse.data);
+
+            return {
+              ...product,
+              averageRating: Number(summary.averageRating || 0),
+              totalReviews: Number(summary.totalReviews || 0),
+            };
+          } catch (summaryError) {
+            console.log(
+              `Gagal mengambil rating produk ${productId}:`,
+              summaryError,
+            );
+
+            return {
+              ...product,
+              averageRating: 0,
+              totalReviews: 0,
+            };
+          }
+        }),
+      );
+
+      setProducts(productsWithReviewSummary);
     } catch (err) {
       console.log("ERROR FETCH PRODUCTS:", err);
       setError(
@@ -201,8 +244,18 @@ function AdminProducts() {
       _price: Number(product.price || product.productPrice || 0),
       _stock: Number(product.stock || product.qty || 0),
       _status: String(product.status || "ACTIVE").toUpperCase(),
-      _imageUrl: product.imageUrl || product.image || product.productImage || "",
+      _imageUrl:
+        product.imageUrl || product.image || product.productImage || "",
       _updatedAt: product.updatedAt || product.createdAt || null,
+      _averageRating: Number(
+        product.averageRating || product.ratingAverage || product.rating || 0,
+      ),
+      _totalReviews: Number(
+        product.totalReviews ||
+          product.reviewCount ||
+          product.reviewsCount ||
+          0,
+      ),
     }));
   }, [products]);
 
@@ -305,12 +358,8 @@ const handleConfirmDeleteProduct = async () => {
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between px-5 py-6">
-          <div className="inline-flex cursor-default select-none">
-            <img
-              src={logo}
-              alt="BaenTech Store"
-              className="h-16 w-auto object-contain"
-            />
+          <div className="inline-flex select-none">
+            <BrandLogo to="/admin/dashboard" />
           </div>
 
           <button
@@ -590,7 +639,7 @@ const handleConfirmDeleteProduct = async () => {
 
           <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-left">
+              <table className="w-full min-w-[1260px] text-left">
                 <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
                   <tr>
                     <th className="px-5 py-4">Product</th>
@@ -599,6 +648,7 @@ const handleConfirmDeleteProduct = async () => {
                     <th className="px-5 py-4">Price</th>
                     <th className="px-5 py-4">Stock</th>
                     <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Rating</th>
                     <th className="px-5 py-4">Updated</th>
                     <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
@@ -608,7 +658,7 @@ const handleConfirmDeleteProduct = async () => {
                   {loading && (
                     <tr>
                       <td
-                        colSpan="8"
+                        colSpan="9"
                         className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
                       >
                         Memuat data products...
@@ -619,7 +669,7 @@ const handleConfirmDeleteProduct = async () => {
                   {!loading && paginatedProducts.length === 0 && (
                     <tr>
                       <td
-                        colSpan="8"
+                        colSpan="9"
                         className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
                       >
                         Product tidak ditemukan.
@@ -675,6 +725,13 @@ const handleConfirmDeleteProduct = async () => {
 
                         <td className="px-5 py-4">
                           <StatusBadge value={product._status} />
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <ProductReviewSummary
+                            averageRating={product._averageRating}
+                            totalReviews={product._totalReviews}
+                          />
                         </td>
 
                         <td className="px-5 py-4">
@@ -774,7 +831,38 @@ function ProductImage({ product }) {
     />
   );
 }
+function ProductReviewSummary({ averageRating = 0, totalReviews = 0 }) {
+  const rating = Number(averageRating || 0);
+  const reviews = Number(totalReviews || 0);
 
+  return (
+    <div className="min-w-0">
+      <div className="inline-flex items-center gap-2 rounded-2xl bg-yellow-50 px-3 py-2 dark:bg-yellow-950/20">
+        <Star
+          size={16}
+          className={
+            rating > 0
+              ? "shrink-0 fill-yellow-400 text-yellow-400"
+              : "shrink-0 text-slate-300 dark:text-slate-600"
+          }
+        />
+
+        <span className="text-sm font-black text-slate-950 dark:text-white">
+          {rating > 0 ? rating.toFixed(1) : "0.0"}
+        </span>
+
+        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+          / 5
+        </span>
+      </div>
+
+      <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+        <MessageSquareText size={14} className="shrink-0" />
+        <span>{reviews} ulasan</span>
+      </div>
+    </div>
+  );
+}
 function StatCard({ title, value, subtitle, icon: Icon, color, loading }) {
   const colorMap = {
     blue: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
@@ -865,6 +953,12 @@ function normalizeListResponse(data) {
   if (Array.isArray(data?.result)) return data.result;
 
   return [];
+}
+
+function normalizeObjectResponse(data) {
+  if (data?.data) return data.data;
+  if (data?.result) return data.result;
+  return data || {};
 }
 
 function getSavedAdminProfile() {

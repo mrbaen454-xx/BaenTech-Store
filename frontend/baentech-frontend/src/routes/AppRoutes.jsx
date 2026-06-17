@@ -14,6 +14,7 @@ import AdminOrders from "../pages/admin/AdminOrders";
 import AdminPayments from "../pages/admin/AdminPayments";
 import AdminShipping from "../pages/admin/AdminShipping";
 import AdminReports from "../pages/admin/AdminReports";
+import UserProfile from "../pages/UserProfile";
 
 import ProtectedRoute, {
   GuestRoute,
@@ -64,6 +65,15 @@ function AppRoutes() {
           <GuestRoute>
             <Register />
           </GuestRoute>
+        }
+      />
+
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <UserProfile />
+          </ProtectedRoute>
         }
       />
 
