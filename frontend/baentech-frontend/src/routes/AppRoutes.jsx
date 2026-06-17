@@ -5,6 +5,7 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import Products from "../pages/Products";
 import ProductDetail from "../pages/ProductDetail";
+import Cart from "../pages/Cart";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminProducts from "../pages/admin/AdminProducts";
 import AdminProductForm from "../pages/admin/AdminProductFrom";
@@ -46,6 +47,14 @@ function AppRoutes() {
           <UserOnlyRoute>
             <ProductDetail />
           </UserOnlyRoute>
+        }
+      />
+      <Route
+        path="/cart"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <Cart />
+          </ProtectedRoute>
         }
       />
 
