@@ -249,4 +249,30 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+
+
+    @PutMapping("/internal/{id}/paid")
+    public ResponseEntity<?> markOrderAsPaid(
+            @RequestHeader("X-Internal-Token") String internalToken,
+            @PathVariable Long id) {
+        try {
+            OrderResponse response = orderService.markOrderAsPaid(internalToken, id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Terjadi kesalahan pada server");
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
 }

@@ -15,6 +15,9 @@ import AdminPayments from "../pages/admin/AdminPayments";
 import AdminShipping from "../pages/admin/AdminShipping";
 import AdminReports from "../pages/admin/AdminReports";
 import UserProfile from "../pages/UserProfile";
+import Cart from "../pages/Cart";
+import Checkout from "../pages/Checkout";
+import PaymentResult from "../pages/PaymentResult";
 
 import ProtectedRoute, {
   GuestRoute,
@@ -163,6 +166,48 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
             <AdminReports />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cart"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <Cart />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/checkout"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <Checkout />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payment/finish"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <PaymentResult />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payment/pending"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <PaymentResult />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payment/error"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <PaymentResult />
           </ProtectedRoute>
         }
       />

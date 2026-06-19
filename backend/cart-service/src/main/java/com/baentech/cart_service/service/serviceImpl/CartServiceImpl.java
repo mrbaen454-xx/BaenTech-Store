@@ -150,28 +150,32 @@ public class CartServiceImpl implements CartService{
     }
 
     @Override
-    public MessageResponse deleteCartItem(String email, Long itemId)
-    {
+    @Transactional
+    public MessageResponse deleteCartItem(String email, Long itemId) {
         try {
-            
             CartItem cartItem = cartItemRepository.findByIdAndCartEmail(itemId, email)
-                .orElseThrow(() -> new RuntimeException("Item cart tidak ditemukan"));
+                    .orElseThrow(() -> new RuntimeException("Item cart tidak ditemukan"));
 
             Cart cart = cartItem.getCart();
 
+            // Hapus item dari list cart
+            cart.getItems().removeIf(item -> item.getId() != null && item.getId().equals(itemId));
+
+            // Hapus item dari database
+            cartItemRepository.delete(cartItem);
+
+            // Hitung ulang total setelah item dihapus
             updateCartTotal(cart);
 
             return MessageResponse.builder()
-                .success(true)
-                .message("Item cart berhasil dihapus")
-                .build();
-            
+                    .success(true)
+                    .message("Item cart berhasil dihapus")
+                    .build();
+
         } catch (Exception e) {
             throw new RuntimeException("Gagal menghapus item cart: " + e.getMessage());
         }
-
     }
-
     @Override
     @Transactional
     public MessageResponse clearCart(String email)
@@ -222,13 +226,12 @@ public class CartServiceImpl implements CartService{
         }
     }
     
-    private void updateCartTotal(Cart cart)
-    {
+    private void updateCartTotal(Cart cart) {
         try {
             List<CartItem> items = cart.getItems();
 
             BigDecimal totalPrice = items.stream()
-                    .map(CartItem::getSubTotal)
+                    .map(item -> item.getSubTotal() == null ? BigDecimal.ZERO : item.getSubTotal())
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             cart.setTotalPrice(totalPrice);
@@ -237,7 +240,6 @@ public class CartServiceImpl implements CartService{
         } catch (Exception e) {
             throw new RuntimeException("Gagal menghitung total cart: " + e.getMessage());
         }
-
     }
 
     private CartResponse mapToCartResponse(Cart cart)

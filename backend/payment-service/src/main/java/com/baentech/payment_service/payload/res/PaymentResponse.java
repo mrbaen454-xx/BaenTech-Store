@@ -29,6 +29,18 @@ public class PaymentResponse {
 
     private PaymentStatus status;
 
+
+    private String gateway;
+    private String gatewayOrderId;
+    private String gatewayInvoiceId;
+    private String redirectUrl;
+    private String transactionStatus;
+    private String paymentType;
+    private String paymentChannel;
+    private String paymentDestination;
+
+
+
     private LocalDateTime paidAt;
 
     private LocalDateTime createdAt;

@@ -25,6 +25,7 @@ import {
   getProductReviewSummaryApi,
 } from "../api/productApi";
 import { useAuth } from "../context/AuthContext";
+import { addCartItemApi } from "../api/cartApi";
 
 function ProductDetail() {
   const { id } = useParams();
@@ -43,9 +44,10 @@ function ProductDetail() {
     comment: "",
   });
 
-  const [loading, setLoading] = useState(true);
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [deleteReviewLoadingId, setDeleteReviewLoadingId] = useState(null);
+ const [loading, setLoading] = useState(true);
+ const [reviewLoading, setReviewLoading] = useState(false);
+ const [deleteReviewLoadingId, setDeleteReviewLoadingId] = useState(null);
+ const [cartLoading, setCartLoading] = useState(false);
 
   const [error, setError] = useState("");
   const [reviewError, setReviewError] = useState("");
@@ -145,18 +147,44 @@ function ProductDetail() {
     return `${productBaseUrl}${rawImage}`;
   };
 
-  const handleBuy = () => {
-    if (!isAuthenticated) {
-      navigate("/login", {
-        state: {
-          from: `/products/${id}`,
-        },
-      });
-      return;
-    }
+const handleBuy = async () => {
+  if (!isAuthenticated) {
+    navigate("/login", {
+      state: {
+        from: `/products/${id}`,
+      },
+    });
+    return;
+  }
 
-    alert("Fitur keranjang akan kita buat di tahap berikutnya.");
-  };
+  const productId = product?.id || product?.productId || id;
+
+  if (!productId) {
+    setError("ID produk tidak ditemukan.");
+    return;
+  }
+
+  try {
+    setCartLoading(true);
+    setError("");
+    setReviewError("");
+    setSuccessMessage("");
+
+    await addCartItemApi(productId, 1);
+
+    setSuccessMessage("Produk berhasil ditambahkan ke keranjang.");
+  } catch (err) {
+    console.log("ERROR ADD TO CART:", err);
+
+    setError(
+      err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Gagal menambahkan produk ke keranjang.",
+    );
+  } finally {
+    setCartLoading(false);
+  }
+};
 
   const handleRatingChange = (rating) => {
     setReviewForm((prev) => ({
@@ -413,12 +441,22 @@ function ProductDetail() {
                   <button
                     type="button"
                     onClick={handleBuy}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-7 py-4 font-black text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-700"
+                    disabled={cartLoading || Number(product.stock || 0) <= 0}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-7 py-4 font-black text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <ShoppingCart size={20} />
-                    {isAuthenticated
-                      ? "Tambah ke Keranjang"
-                      : "Login untuk Membeli"}
+                    {cartLoading ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : (
+                      <ShoppingCart size={20} />
+                    )}
+
+                    {cartLoading
+                      ? "Menambahkan..."
+                      : Number(product.stock || 0) <= 0
+                        ? "Stok Habis"
+                        : isAuthenticated
+                          ? "Tambah ke Keranjang"
+                          : "Login untuk Membeli"}
                   </button>
 
                   <Link

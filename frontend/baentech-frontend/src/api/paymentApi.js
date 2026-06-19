@@ -62,14 +62,28 @@ export const getMyPaymentsApi = async () => {
   return normalizeList(response.data);
 };
 
+export const createMidtransPaymentApi = async (payload) => {
+  const response = await paymentAxios.post("/api/payments/midtrans/create", {
+    orderId: Number(payload.orderId),
+    paymentMethod: payload.paymentMethod,
+  });
+
+  return response.data?.data || response.data;
+};
+
 export const getPaymentByOrderIdApi = async (orderId) => {
   const response = await paymentAxios.get(`/api/payments/order/${orderId}`);
-  return normalizeObject(response.data);
+
+  return response.data?.data || response.data;
 };
 
 export const createPaymentApi = async (payload) => {
-  const response = await paymentAxios.post("/api/payments/create", payload);
-  return normalizeObject(response.data);
+  const response = await paymentAxios.post("/api/payments/create", {
+    orderId: Number(payload.orderId),
+    paymentMethod: payload.paymentMethod,
+  });
+
+  return response.data?.data || response.data;
 };
 
 export const paymentSuccessApi = async (paymentId) => {
@@ -80,6 +94,15 @@ export const paymentSuccessApi = async (paymentId) => {
 export const paymentFailedApi = async (paymentId) => {
   const response = await paymentAxios.put(`/api/payments/${paymentId}/failed`);
   return normalizeObject(response.data);
+};
+
+export const createXenditPaymentApi = async (payload) => {
+  const response = await paymentAxios.post("/api/payments/xendit/create", {
+    orderId: Number(payload.orderId),
+    paymentMethod: payload.paymentMethod,
+  });
+
+  return response.data?.data || response.data;
 };
 
 // Alias supaya halaman lama yang pakai nama markPaymentSuccessApi tetap aman

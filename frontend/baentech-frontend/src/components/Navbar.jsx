@@ -9,11 +9,11 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import BrandLogo from "./BrandLogo";
+import { getMyCartApi } from "../api/cartApi";
 
 const normalizeRole = (role) => {
   if (!role) return "";
@@ -175,6 +175,7 @@ function Navbar() {
   const { isDarkMode, toggleTheme } = useTheme();
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
 
   const token = getToken();
   const role = getFinalRole(user);
@@ -193,6 +194,41 @@ function Navbar() {
 
   const showCenterMenu = !isProductPage;
 
+  const fetchCartCount = async () => {
+    if (!isLoggedIn || !isUser) {
+      setCartCount(0);
+      return;
+    }
+
+    try {
+      const cart = await getMyCartApi();
+      const items = Array.isArray(cart?.items) ? cart.items : [];
+
+      const totalItems =
+        Number(cart?.totalItems || 0) ||
+        items.reduce((total, item) => total + Number(item.quantity || 0), 0);
+
+      setCartCount(totalItems);
+    } catch (err) {
+      console.log("ERROR FETCH CART COUNT:", err);
+      setCartCount(0);
+    }
+  };
+  useEffect(() => {
+    fetchCartCount();
+
+    const handleCartUpdated = () => {
+      fetchCartCount();
+    };
+
+    window.addEventListener("baentech-cart-updated", handleCartUpdated);
+    window.addEventListener("storage", handleCartUpdated);
+
+    return () => {
+      window.removeEventListener("baentech-cart-updated", handleCartUpdated);
+      window.removeEventListener("storage", handleCartUpdated);
+    };
+  }, [isLoggedIn, isUser, location.pathname]);
   const handleLogout = () => {
     logout?.();
 
@@ -259,8 +295,8 @@ function Navbar() {
                 title="Keranjang"
               >
                 <ShoppingCart size={23} />
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">
-                  0
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">
+                  {cartCount > 99 ? "99+" : cartCount}
                 </span>
               </Link>
 
@@ -411,7 +447,12 @@ function Navbar() {
               {isLoggedIn && isUser && (
                 <div className="grid grid-cols-2 gap-3 pt-3">
                   <MobileIconLink to="/cart" onClick={closeMobile}>
-                    <ShoppingCart size={22} />
+                    <div className="relative">
+                      <ShoppingCart size={22} />
+                      <span className="absolute -right-3 -top-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">
+                        {cartCount > 99 ? "99+" : cartCount}
+                      </span>
+                    </div>
                     <span>Keranjang</span>
                   </MobileIconLink>
 

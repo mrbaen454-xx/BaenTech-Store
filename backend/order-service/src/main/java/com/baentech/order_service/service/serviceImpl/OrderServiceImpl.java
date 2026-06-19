@@ -16,8 +16,10 @@ import com.baentech.order_service.payload.res.OrderResponse;
 import com.baentech.order_service.repository.OrderRepository;
 import com.baentech.order_service.service.OrderService;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -34,6 +36,10 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
 
     private final WebClient.Builder webClientBuilder;
+
+
+    @Value("${internal.api-key}")
+    private String internalApiKey;
 
     @Override
     public OrderResponse checkout(String email, String token, CheckoutRequest request) {
@@ -380,5 +386,22 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             throw new RuntimeException("Gagal mapping order item: " + e.getMessage());
         }
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse markOrderAsPaid(String internalToken, Long id) {
+        if (internalToken == null || !internalToken.equals(internalApiKey)) {
+            throw new RuntimeException("Internal token tidak valid");
+        }
+
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+
+        order.setStatus(OrderStatus.PAID);
+
+        Order savedOrder = orderRepository.save(order);
+
+        return mapToOrderResponse(savedOrder);
     }
 }
