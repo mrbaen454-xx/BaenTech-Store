@@ -18,6 +18,7 @@ import UserProfile from "../pages/UserProfile";
 import Cart from "../pages/Cart";
 import Checkout from "../pages/Checkout";
 import PaymentResult from "../pages/PaymentResult";
+import MyOrders from "../pages/MyOrders";
 
 import ProtectedRoute, {
   GuestRoute,
@@ -174,6 +175,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
             <Cart />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-orders"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <MyOrders />
           </ProtectedRoute>
         }
       />

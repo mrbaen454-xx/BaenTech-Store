@@ -218,8 +218,8 @@ public class OrderServiceImpl implements OrderService {
                 throw new RuntimeException("Anda tidak memiliki akses ke order ini");
             }
 
-            if (order.getStatus() != OrderStatus.PAID) {
-                throw new RuntimeException("Order hanya bisa diselesaikan jika status PAID");
+            if (order.getStatus() != OrderStatus.SHIPPED) {
+                throw new RuntimeException("Order hanya bisa diselesaikan jika status SHIPPED");
             }
 
             order.setStatus(OrderStatus.COMPLETED);
