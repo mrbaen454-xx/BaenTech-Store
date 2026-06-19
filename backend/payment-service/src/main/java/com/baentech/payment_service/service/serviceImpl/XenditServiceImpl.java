@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -38,12 +39,22 @@ public class XenditServiceImpl implements XenditService {
     @Override
     public XenditInvoiceResponse createInvoice(Payment payment, OrderClientResponse order) {
         try {
+            String cleanSecretKey = secretKey == null ? "" : secretKey.trim();
+
+            if (cleanSecretKey.isBlank()) {
+                throw new RuntimeException("Xendit secret key belum diisi di environment variable XENDIT_SECRET_KEY");
+            }
+
+            if (cleanSecretKey.startsWith("xnd_public")) {
+                throw new RuntimeException("Xendit yang dipakai masih PUBLIC KEY. Untuk backend harus memakai SECRET KEY dari dashboard Xendit.");
+            }
+
             String basicAuth = Base64.getEncoder()
-                    .encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
+                    .encodeToString((cleanSecretKey + ":").getBytes(StandardCharsets.UTF_8));
 
             Map<String, Object> body = buildInvoiceRequestBody(payment, order);
 
-            return webClientBuilder.build()
+            XenditInvoiceResponse response = webClientBuilder.build()
                     .post()
                     .uri(invoiceUrl)
                     .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuth)
@@ -54,6 +65,14 @@ public class XenditServiceImpl implements XenditService {
                     .bodyToMono(XenditInvoiceResponse.class)
                     .block();
 
+            if (response == null || response.getInvoiceUrl() == null || response.getInvoiceUrl().isBlank()) {
+                throw new RuntimeException("Response invoice Xendit tidak membawa invoice_url");
+            }
+
+            return response;
+
+        } catch (WebClientResponseException e) {
+            throw new RuntimeException("Gagal membuat invoice Xendit: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
         } catch (Exception e) {
             throw new RuntimeException("Gagal membuat invoice Xendit: " + e.getMessage());
         }
