@@ -255,8 +255,11 @@ const redirectUrl =
       window.location.href = redirectUrl;
     }, 500);
   } catch (err) {
-    console.log("ERROR CHECKOUT MIDTRANS:", err);
-    console.log("CHECKOUT ERROR RESPONSE:", err.response?.data);
+   console.log("ERROR CHECKOUT XENDIT:", err);
+   console.log(
+     "CHECKOUT ERROR RESPONSE:",
+     JSON.stringify(err.response?.data, null, 2),
+   );
 
     const backendMessage =
       err.response?.data?.message ||
@@ -264,7 +267,7 @@ const redirectUrl =
       err.response?.data?.detail ||
       err.response?.data?.errors ||
       err.message ||
-      "Gagal membuat checkout Midtrans.";
+      "Gagal membuat checkout Xendit.";
 
     setError(
       typeof backendMessage === "string"

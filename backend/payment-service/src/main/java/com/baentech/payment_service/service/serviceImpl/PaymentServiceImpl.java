@@ -14,8 +14,10 @@ import com.baentech.payment_service.repository.PaymentRepository;
 import com.baentech.payment_service.service.PaymentService;
 import com.baentech.payment_service.service.XenditService;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+
+
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -28,14 +30,24 @@ import java.util.List;
 import java.util.Random;
 
 @Service
-@RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
+    
+    private final XenditService xenditService;
 
-    private final WebClient.Builder webClientBuilder;
+    private final WebClient.Builder loadBalancedWebClientBuilder;
 
-    private final XenditService xenditService; 
+    public PaymentServiceImpl(
+        PaymentRepository paymentRepository,
+        @Qualifier("loadBalancedWebClientBuilder") WebClient.Builder loadBalancedWebClientBuilder,
+        XenditService xenditService
+) {
+    this.paymentRepository = paymentRepository;
+    this.loadBalancedWebClientBuilder = loadBalancedWebClientBuilder;
+    this.xenditService = xenditService;
+}
+
 
 
 
@@ -339,7 +351,7 @@ public PaymentResponse handleXenditCallback(
 
 private OrderClientResponse getOrderFromOrderService(String token, Long orderId) {
     try {
-        return webClientBuilder.build()
+        return loadBalancedWebClientBuilder.build()
                 .get()
                 .uri(orderServiceUrl + "/api/orders/" + orderId)
                 .header("Authorization", token)
@@ -354,7 +366,7 @@ private OrderClientResponse getOrderFromOrderService(String token, Long orderId)
 
 private void updateOrderToPaid(Long orderId) {
     try {
-        webClientBuilder.build()
+        loadBalancedWebClientBuilder.build()
                 .put()
                 .uri(orderServiceUrl + "/api/orders/internal/" + orderId + "/paid")
                 .header("X-Internal-Token", internalApiKey)
@@ -385,7 +397,7 @@ private void updateOrderToPaid(Long orderId) {
                         "BaenTech Store"
             );
 
-            webClientBuilder.build()
+            loadBalancedWebClientBuilder.build()
                 .post()
                 .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
                 .bodyValue(emailRequest)
@@ -414,7 +426,7 @@ private void updateOrderToPaid(Long orderId) {
                         "BaenTech Store"
             );
 
-            webClientBuilder.build()
+            loadBalancedWebClientBuilder.build()
                 .post()
                 .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
                 .bodyValue(emailRequest)
@@ -429,7 +441,7 @@ private void updateOrderToPaid(Long orderId) {
 
     private OrderClientResponse getOrderFromOrderService(Long orderId, String token) {
         try {
-            return webClientBuilder.build()
+            return loadBalancedWebClientBuilder.build()
                     .get()
                     .uri("http://ORDER-SERVICE/api/orders/" + orderId)
                     .header("Authorization", token)
@@ -446,7 +458,7 @@ private void updateOrderToPaid(Long orderId) {
         try {
             UpdateOrderStatusClientRequest request = new UpdateOrderStatusClientRequest("PAID");
 
-            webClientBuilder.build()
+            loadBalancedWebClientBuilder.build()
                     .put()
                     .uri("http://ORDER-SERVICE/api/orders/" + orderId + "/status")
                     .header("Authorization", token)

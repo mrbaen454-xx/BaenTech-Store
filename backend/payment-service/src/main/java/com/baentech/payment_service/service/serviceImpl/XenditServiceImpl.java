@@ -5,8 +5,8 @@ import com.baentech.payment_service.payload.client.OrderClientResponse;
 import com.baentech.payment_service.payload.res.XenditInvoiceResponse;
 import com.baentech.payment_service.service.XenditService;
 
-import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,10 +22,14 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class XenditServiceImpl implements XenditService {
 
-    private final WebClient.Builder webClientBuilder;
+    private final WebClient.Builder plainWebClientBuilder;
+
+    public XenditServiceImpl(
+        @Qualifier("plainWebClientBuilder") WebClient.Builder plainWebClientBuilder) {
+        this.plainWebClientBuilder = plainWebClientBuilder;
+    }
 
     @Value("${xendit.secret-key}")
     private String secretKey;
@@ -41,12 +45,13 @@ public class XenditServiceImpl implements XenditService {
         try {
             String cleanSecretKey = secretKey == null ? "" : secretKey.trim();
 
-            if (cleanSecretKey.isBlank()) {
-                throw new RuntimeException("Xendit secret key belum diisi di environment variable XENDIT_SECRET_KEY");
+            if (secretKey == null || secretKey.isBlank()) {
+                throw new RuntimeException("Xendit secret key belum diisi");
             }
 
-            if (cleanSecretKey.startsWith("xnd_public")) {
-                throw new RuntimeException("Xendit yang dipakai masih PUBLIC KEY. Untuk backend harus memakai SECRET KEY dari dashboard Xendit.");
+            if (secretKey.startsWith("xnd_public")) {
+                throw new RuntimeException(
+                        "Xendit secret key salah. Jangan pakai Public Key, pakai Secret Key dari dashboard Xendit.");
             }
 
             String basicAuth = Base64.getEncoder()
@@ -54,7 +59,7 @@ public class XenditServiceImpl implements XenditService {
 
             Map<String, Object> body = buildInvoiceRequestBody(payment, order);
 
-            XenditInvoiceResponse response = webClientBuilder.build()
+            XenditInvoiceResponse response = plainWebClientBuilder.build()
                     .post()
                     .uri(invoiceUrl)
                     .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuth)
