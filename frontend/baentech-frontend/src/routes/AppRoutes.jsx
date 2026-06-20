@@ -133,6 +133,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/products/:id/reviews"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
+            <ProductDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/categories"
         element={
           <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
