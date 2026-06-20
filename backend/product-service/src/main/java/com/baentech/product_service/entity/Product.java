@@ -42,6 +42,7 @@ public class Product {
 
     private String brand;
 
+    @Column(name = "profile_image_url", columnDefinition = "TEXT")
     private String imageUrl;
 
     @Column(nullable = false)

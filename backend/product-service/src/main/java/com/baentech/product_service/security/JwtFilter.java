@@ -28,6 +28,10 @@ public class JwtFilter extends OncePerRequestFilter {
             String path = request.getServletPath();
             String method = request.getMethod();
 
+            if (path.equals("/api/products/internal/stock/reduce") && method.equalsIgnoreCase("PUT")) {
+                return true;
+            }
+
             if (path.startsWith("/actuator")) {
                 return true;
             }

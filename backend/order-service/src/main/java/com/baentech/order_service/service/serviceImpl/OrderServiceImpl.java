@@ -40,6 +40,9 @@ public class OrderServiceImpl implements OrderService {
     @Value("${internal.api-key}")
     private String internalApiKey;
 
+    @Value("${product.service.url:http://PRODUCT-SERVICE}")
+    private String productServiceUrl;
+
     @Override
     public OrderResponse checkout(String email, String token, CheckoutRequest request) {
         try {
@@ -340,6 +343,28 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private void reduceProductStockInternal(Order order) {
+    try {
+        List<ProductStockItemClientRequest> stockItems = order.getItems().stream()
+                .map(item -> new ProductStockItemClientRequest(item.getProductId(), item.getQuantity()))
+                .toList();
+
+        ReduceStockClientRequest request = new ReduceStockClientRequest(stockItems);
+
+        webClientBuilder.build()
+                .put()
+                .uri(productServiceUrl + "/api/products/internal/stock/reduce")
+                .header("X-Internal-Token", internalApiKey)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+    } catch (Exception e) {
+        throw new RuntimeException("Gagal mengurangi stok produk internal: " + e.getMessage());
+    }
+}
+
     private CartClientResponse getCartFromCartService(String token) {
         try {
             return webClientBuilder.build()
@@ -455,9 +480,19 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Order sudah diproses dan tidak bisa ditandai PAID ulang");
         }
 
+        if (order.getStatus() == OrderStatus.PAID) {
+            return mapToOrderResponse(order);
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new RuntimeException("Order hanya bisa ditandai PAID dari status PENDING_PAYMENT");
+        }
+
         order.setStatus(OrderStatus.PAID);
 
         Order savedOrder = orderRepository.save(order);
+
+        reduceProductStockInternal(savedOrder);
 
         return mapToOrderResponse(savedOrder);
     }

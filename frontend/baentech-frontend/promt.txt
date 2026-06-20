@@ -1,0 +1,248 @@
+Saya ingin kamu rapikan dan upgrade tampilan frontend BaenTech Store.
+
+Project frontend ada di:
+
+frontend/baentech-frontend
+
+Stack:
+- React
+- Vite
+- Tailwind CSS
+- React Router
+- Lucide React
+- Axios
+
+Jangan ubah backend, jangan ubah endpoint API, jangan ubah logic bisnis utama. Fokus hanya frontend UI/UX, responsive, transisi, alert popup, dan styling.
+
+Tugas utama:
+
+1. Ganti semua alert bawaan browser
+Cari penggunaan:
+- alert(...)
+- window.alert(...)
+- confirm(...)
+- window.confirm(...)
+
+Ganti menjadi komponen popup custom yang rapi.
+
+Buat komponen reusable, misalnya:
+
+src/components/ui/AppToast.jsx
+src/components/ui/ConfirmModal.jsx
+
+atau nama lain yang rapi.
+
+Kebutuhan popup:
+- Untuk pesan sukses, error, warning, info gunakan toast/popup modern.
+- Untuk konfirmasi seperti hapus, cancel order, complete order, logout, delete product, gunakan modal confirm custom.
+- Jangan pakai alert/confirm bawaan browser lagi.
+- Popup harus support dark mode.
+- Popup harus punya animasi masuk/keluar halus.
+- Popup harus responsive di HP.
+- Untuk toast, tampil di kanan atas desktop dan atas/tengah di mobile.
+- Untuk confirm modal, tampil center dengan overlay blur gelap.
+
+2. Buat tampilan lebih menarik dari sisi transisi
+Tambahkan transisi halus di:
+- card hover
+- button hover
+- modal open/close
+- dropdown
+- table row hover
+- page content load
+- skeleton/loading state bila diperlukan
+
+Gunakan Tailwind class seperti:
+- transition
+- duration-200 / duration-300
+- ease-out
+- hover:-translate-y-0.5
+- hover:shadow-lg
+- active:scale-[0.98]
+- animate-pulse untuk skeleton
+
+Jangan berlebihan sampai berat. Tetap ringan dan clean.
+
+3. Ubah background utama mode siang menjadi abu-abu
+Sekarang banyak halaman memakai background putih.
+
+Untuk light mode, background utama halaman ubah menjadi abu muda, misalnya:
+- bg-slate-100
+- bg-gray-100
+- bg-slate-50
+
+Jangan semua card ikut abu. Card/konten tetap putih agar kontras:
+- wrapper utama halaman: bg-slate-100
+- card/table/modal: bg-white
+- dark mode tetap bg-slate-950 atau dark:bg-slate-950
+
+Pastikan semua halaman utama punya background abu:
+- user pages
+- admin pages
+- product pages
+- cart
+- checkout
+- payment finish
+- my orders
+- admin dashboard
+- admin product
+- admin orders
+- admin payments
+- admin shipping
+
+4. Rapikan responsive mobile
+Fokus khusus tampilan HP.
+
+Masalah yang harus diperbaiki:
+- tulisan terlalu besar di HP
+- card terlalu lebar/penuh
+- padding terlalu besar
+- table admin overflow tidak rapi
+- tombol kadang terlalu besar
+- modal terlalu penuh
+- filter/search kurang rapi di layar kecil
+
+Aturan responsive:
+- Gunakan text-sm / text-xs untuk mobile, lalu sm:text-base / sm:text-lg untuk desktop.
+- Heading mobile jangan terlalu besar. Contoh:
+  h1: text-2xl sm:text-4xl
+  h2: text-lg sm:text-2xl
+- Padding mobile lebih kecil:
+  px-3 sm:px-6 lg:px-8
+  py-4 sm:py-8
+  p-4 sm:p-6
+- Border radius mobile boleh lebih kecil:
+  rounded-2xl sm:rounded-3xl
+- Button mobile gunakan text-xs atau text-sm.
+- Pada mobile, grid harus jadi 1 kolom.
+- Table admin harus tetap bisa scroll horizontal dengan overflow-x-auto.
+- Card order/product/payment harus tidak pecah di HP.
+- Modal di HP boleh full width bagian bawah seperti bottom sheet, desktop center modal.
+
+5. Rapikan halaman yang baru dibuat
+Pastikan halaman ini juga ikut dirapikan:
+- src/pages/PaymentResult.jsx
+- src/pages/MyOrders.jsx
+- src/pages/admin/AdminPayments.jsx
+- src/pages/admin/AdminOrders.jsx
+- src/pages/admin/AdminShipping.jsx
+- src/pages/Checkout.jsx
+- src/pages/Cart.jsx
+
+PaymentResult:
+- tampilannya harus clean dan modern
+- tombol “Lihat Pesanan” arahkan ke /my-orders
+- jangan ada teks Midtrans
+- tetap pakai Xendit
+- status SUCCESS/PENDING/FAILED harus jelas
+
+MyOrders:
+- card order responsive di HP
+- tombol Bayar Sekarang, Detail, Batalkan, Pesanan Diterima lebih rapi
+- confirm cancel order dan complete order pakai custom ConfirmModal, bukan window.confirm
+- pesan sukses/error pakai toast
+
+AdminPayments:
+- popup action Mark Success/Mark Failed pakai confirm modal
+- Xendit payment jangan bisa Mark Success manual
+- tampilan gateway/invoice Xendit rapi
+
+AdminOrders:
+- status PENDING_PAYMENT, PAID, PROCESSING, SHIPPED, COMPLETED, CANCELLED harus jelas
+- admin tidak boleh proses shipping kalau belum PAID
+- confirm action pakai modal custom
+
+AdminShipping:
+- create/update shipping error/success pakai toast
+- responsive HP lebih rapi
+- modal create shipping jangan terlalu besar di HP
+
+6. Jangan merusak logic yang sudah jalan
+Pertahankan flow ini:
+- User checkout
+- Order dibuat PENDING_PAYMENT
+- Payment Xendit dibuat PENDING
+- User redirect ke Xendit
+- Callback Xendit update payment SUCCESS
+- Order berubah PAID
+- Admin buat shipping
+- Order berubah SHIPPED
+- User klik Pesanan Diterima
+- Order berubah COMPLETED
+
+Jangan ubah nama function API yang sudah ada:
+- checkoutApi
+- createXenditPaymentApi
+- getPaymentByOrderIdApi
+- getMyOrdersApi
+- cancelOrderApi
+- completeOrderApi
+- createShippingApi
+- updateShippingApi
+- getAdminPaymentsApi
+- markPaymentSuccessApi
+- markPaymentFailedApi
+
+7. Buat komponen UI reusable
+Kalau belum ada, buat reusable components:
+- ToastProvider / useToast
+- ConfirmModal
+- PageShell atau PageContainer
+- StatusBadge jika diperlukan
+- LoadingSkeleton jika diperlukan
+
+Struktur bebas, tapi harus rapi.
+
+Contoh penggunaan toast:
+- showToast({ type: "success", message: "Berhasil menyimpan data" })
+- showToast({ type: "error", message: "Gagal menyimpan data" })
+
+Contoh confirm:
+- openConfirm({
+    title: "Batalkan Pesanan?",
+    message: "Pesanan yang dibatalkan tidak bisa diproses lagi.",
+    confirmText: "Ya, Batalkan",
+    cancelText: "Tidak",
+    variant: "danger",
+    onConfirm: async () => { ... }
+  })
+
+8. Perbaiki konsistensi warna
+Gunakan warna utama:
+- blue untuk primary action
+- green untuk sukses
+- yellow/orange untuk pending/warning
+- red untuk error/cancel
+- slate/gray untuk netral
+
+Light mode:
+- page background abu
+- card putih
+- text slate
+
+Dark mode:
+- page bg-slate-950
+- card bg-slate-900
+- border slate-800
+- text putih/slate-300
+
+9. Pastikan tidak ada error build
+Setelah edit, jalankan:
+npm run build
+
+Perbaiki semua error import, variable unused, atau component belum terdaftar.
+
+10. Output yang saya inginkan
+Setelah selesai, jelaskan:
+- file apa saja yang diubah
+- komponen baru apa yang dibuat
+- alert/confirm mana saja yang sudah diganti
+- cara test halaman
+- hasil npm run build sukses atau tidak
+
+Catatan penting:
+- Jangan commit secret/key.
+- Jangan ubah file backend.
+- Jangan ubah endpoint API.
+- Jangan hapus fitur yang sudah ada.
+- Fokus frontend UI/UX dan responsive.

@@ -35,3 +35,15 @@ build/
 # PostgreSQL / database dump
 *.dump
 *.backup
+
+# Environment files
+.env
+*.env
+.env.*
+backend/*/.env
+frontend/*/.env
+frontend/*/.env.local
+
+# Upload files local
+uploads/
+backend/*/uploads/
