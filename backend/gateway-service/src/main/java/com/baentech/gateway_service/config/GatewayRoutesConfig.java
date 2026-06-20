@@ -31,7 +31,8 @@ public class GatewayRoutesConfig {
                                                 .path(
                                                                 "/api/products/**",
                                                                 "/api/categories/**",
-                                                                "/api/reviews/**")
+                                                                "/api/reviews/**",
+                                                                "/uploads/products/**")
                                                 .uri("lb://PRODUCT-SERVICE"))
 
                                 // CART SERVICE
