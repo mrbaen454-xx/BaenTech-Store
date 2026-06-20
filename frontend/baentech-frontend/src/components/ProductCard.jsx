@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { MessageSquareText, Star } from "lucide-react";
+import { MessageSquareText, Package, Star } from "lucide-react";
 
 import { getProductReviewSummaryApi } from "../api/productApi";
+import { getProductImageUrl, getProductRawImage } from "../utils/productImage";
 
 function ProductCard({ product }) {
   const productBaseUrl =
@@ -10,6 +11,7 @@ function ProductCard({ product }) {
     import.meta.env.VITE_API_BASE_URL ||
     "";
 
+  const [imageFailed, setImageFailed] = useState(false);
   const [reviewSummary, setReviewSummary] = useState({
     averageRating: Number(
       product.averageRating || product.ratingAverage || product.rating || 0,
@@ -18,6 +20,10 @@ function ProductCard({ product }) {
       product.totalReviews || product.reviewCount || product.reviewsCount || 0,
     ),
   });
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [product?.id, product?.imageUrl]);
 
   useEffect(() => {
     let mounted = true;
@@ -60,14 +66,9 @@ function ProductCard({ product }) {
       ? product.category
       : "Tanpa Kategori");
 
-  const rawImage =
-    product.imageUrl || product.image || product.photo || product.thumbnail;
-
-  const imageUrl = rawImage
-    ? String(rawImage).startsWith("http")
-      ? rawImage
-      : `${productBaseUrl}${rawImage}`
-    : "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80";
+  const rawImage = getProductRawImage(product);
+  const imageUrl = getProductImageUrl(rawImage, productBaseUrl);
+  const showImage = imageUrl && !imageFailed;
 
   const averageRating = useMemo(() => {
     return Number(reviewSummary.averageRating || 0);
@@ -80,11 +81,21 @@ function ProductCard({ product }) {
   return (
     <div className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-2.5 shadow-sm transition hover:-translate-y-1 hover:border-blue-300 hover:bg-white hover:shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:hover:border-blue-600 dark:hover:bg-slate-800 sm:rounded-3xl sm:p-5">
       <div className="flex h-28 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 sm:h-52 sm:rounded-2xl">
-        <img
-          src={imageUrl}
-          alt={product.name}
-          className="h-full w-full rounded-xl object-cover transition duration-300 group-hover:scale-105 sm:rounded-2xl"
-        />
+        {showImage ? (
+          <img
+            src={imageUrl}
+            alt={product.name}
+            onError={() => setImageFailed(true)}
+            className="h-full w-full rounded-xl object-cover transition duration-300 group-hover:scale-105 sm:rounded-2xl"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-400 dark:text-slate-500">
+            <Package size={34} />
+            <span className="text-[10px] font-black uppercase tracking-wide sm:text-xs">
+              No Image
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="mt-2.5 min-w-0 sm:mt-5">
