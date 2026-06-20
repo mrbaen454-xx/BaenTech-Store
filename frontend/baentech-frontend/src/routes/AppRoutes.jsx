@@ -18,7 +18,7 @@ import AdminShipping from "../pages/admin/AdminShipping";
 import AdminReports from "../pages/admin/AdminReports";
 import UserProfile from "../pages/UserProfile";
 import Cart from "../pages/Cart";
-import CheckoutV2 from "../pages/CheckoutV2";
+import CheckoutV3 from "../pages/CheckoutV3";
 import PaymentResult from "../pages/PaymentResult";
 import MyOrders from "../pages/MyOrders";
 import OAuthSuccess from "../pages/OAuthSuccess";
@@ -210,7 +210,7 @@ function AppRoutes() {
         path="/checkout"
         element={
           <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
-            <CheckoutV2 />
+            <CheckoutV3 />
           </ProtectedRoute>
         }
       />
