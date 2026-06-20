@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 import BrandLogo from "../../components/BrandLogo";
+import { useConfirm } from "../../components/ui/ConfirmProvider";
+import { useToast } from "../../components/ui/ToastProvider";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -63,6 +65,8 @@ function AdminOrders() {
 
   const { user, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { openConfirm } = useConfirm();
+  const { showToast } = useToast();
 
   const savedAdminProfile = getSavedAdminProfile();
 
@@ -376,120 +380,166 @@ function AdminOrders() {
     const backendOrderId = order._backendOrderId || getBackendOrderId(order);
 
     if (!backendOrderId) {
-      setError("ID order tidak ditemukan, status tidak bisa diubah.");
+      const message = "ID order tidak ditemukan, status tidak bisa diubah.";
+      setError(message);
+      showToast({ type: "error", message });
       return;
     }
 
     const currentStatus = String(order._orderStatus || "").toUpperCase();
 
     if (currentStatus === "PENDING_PAYMENT" && newStatus === "PAID") {
-      setError(
-        "Untuk membuat order menjadi PAID, gunakan tombol Payment Success. Alurnya: payment sukses dulu, lalu order menjadi PAID.",
-      );
+      const message =
+        "Untuk membuat order menjadi PAID, gunakan tombol Payment Success. Alurnya: payment sukses dulu, lalu order menjadi PAID.";
+      setError(message);
+      showToast({ type: "warning", message });
       return;
     }
 
-    try {
-      setUpdatingOrderId(backendOrderId);
-      setError("");
-      setSuccessMessage("");
+    openConfirm({
+      title: "Ubah Status Order?",
+      message: `Status order ${order.orderNumber || backendOrderId} akan diubah dari ${currentStatus || "-"} menjadi ${newStatus}.`,
+      confirmText: "Ubah Status",
+      cancelText: "Batal",
+      variant: ["CANCELLED", "FAILED"].includes(newStatus) ? "danger" : "info",
+      onConfirm: async () => {
+        try {
+          setUpdatingOrderId(backendOrderId);
+          setError("");
+          setSuccessMessage("");
 
-      const data = await updateAdminOrderStatusApi(backendOrderId, newStatus);
+          const data = await updateAdminOrderStatusApi(
+            backendOrderId,
+            newStatus,
+          );
 
-      setOrders((prevOrders) =>
-        prevOrders.map((item) => {
-          const itemId = getBackendOrderId(item);
+          setOrders((prevOrders) =>
+            prevOrders.map((item) => {
+              const itemId = getBackendOrderId(item);
 
-          if (String(itemId) === String(backendOrderId)) {
-            return patchOrderStatus(item, newStatus, data);
-          }
+              if (String(itemId) === String(backendOrderId)) {
+                return patchOrderStatus(item, newStatus, data);
+              }
 
-          return item;
-        }),
-      );
+              return item;
+            }),
+          );
 
-      setSelectedOrder((prevOrder) => {
-        if (!prevOrder) return prevOrder;
+          setSelectedOrder((prevOrder) => {
+            if (!prevOrder) return prevOrder;
 
-        const selectedId = getBackendOrderId(prevOrder);
+            const selectedId = getBackendOrderId(prevOrder);
 
-        if (String(selectedId) === String(backendOrderId)) {
-          return patchOrderStatus(prevOrder, newStatus, data);
+            if (String(selectedId) === String(backendOrderId)) {
+              return patchOrderStatus(prevOrder, newStatus, data);
+            }
+
+            return prevOrder;
+          });
+
+          const message = `Status order berhasil diubah menjadi ${newStatus}.`;
+          setSuccessMessage(message);
+          showToast({ type: "success", message });
+        } catch (err) {
+          console.log("ERROR UPDATE ORDER STATUS:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message ||
+            "Gagal mengubah status order.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setUpdatingOrderId(null);
         }
-
-        return prevOrder;
-      });
-
-      setSuccessMessage(`Status order berhasil diubah menjadi ${newStatus}.`);
-    } catch (err) {
-      console.log("ERROR UPDATE ORDER STATUS:", err);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Gagal mengubah status order.",
-      );
-    } finally {
-      setUpdatingOrderId(null);
-    }
+      },
+    });
   };
 
   const handlePaymentSuccess = async (payment) => {
     if (!payment?.id) {
-      setError("ID payment tidak ditemukan.");
+      const message = "ID payment tidak ditemukan.";
+      setError(message);
+      showToast({ type: "error", message });
       return;
     }
 
-    try {
-      setUpdatingPaymentId(payment.id);
-      setError("");
-      setSuccessMessage("");
+    openConfirm({
+      title: "Payment Success?",
+      message:
+        "Payment akan dikonfirmasi SUCCESS dan order mengikuti alur backend menjadi PAID.",
+      confirmText: "Konfirmasi SUCCESS",
+      cancelText: "Batal",
+      variant: "success",
+      onConfirm: async () => {
+        try {
+          setUpdatingPaymentId(payment.id);
+          setError("");
+          setSuccessMessage("");
 
-      await paymentSuccessApi(payment.id);
-      await refreshSilently();
+          await paymentSuccessApi(payment.id);
+          await refreshSilently();
 
-      setSuccessMessage(
-        "Payment berhasil dikonfirmasi SUCCESS. Order akan berubah menjadi PAID sesuai alur backend.",
-      );
-    } catch (err) {
-      console.log("ERROR PAYMENT SUCCESS:", err);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Gagal mengonfirmasi payment success.",
-      );
-    } finally {
-      setUpdatingPaymentId(null);
-    }
+          const message =
+            "Payment berhasil dikonfirmasi SUCCESS. Order akan berubah menjadi PAID sesuai alur backend.";
+          setSuccessMessage(message);
+          showToast({ type: "success", message });
+        } catch (err) {
+          console.log("ERROR PAYMENT SUCCESS:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message ||
+            "Gagal mengonfirmasi payment success.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setUpdatingPaymentId(null);
+        }
+      },
+    });
   };
 
   const handlePaymentFailed = async (payment) => {
     if (!payment?.id) {
-      setError("ID payment tidak ditemukan.");
+      const message = "ID payment tidak ditemukan.";
+      setError(message);
+      showToast({ type: "error", message });
       return;
     }
 
-    try {
-      setUpdatingPaymentId(payment.id);
-      setError("");
-      setSuccessMessage("");
+    openConfirm({
+      title: "Payment Failed?",
+      message: "Payment akan ditandai FAILED secara manual.",
+      confirmText: "Mark Failed",
+      cancelText: "Batal",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setUpdatingPaymentId(payment.id);
+          setError("");
+          setSuccessMessage("");
 
-      await paymentFailedApi(payment.id);
-      await refreshSilently();
+          await paymentFailedApi(payment.id);
+          await refreshSilently();
 
-      setSuccessMessage("Payment berhasil diubah menjadi FAILED.");
-    } catch (err) {
-      console.log("ERROR PAYMENT FAILED:", err);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Gagal mengubah payment menjadi failed.",
-      );
-    } finally {
-      setUpdatingPaymentId(null);
-    }
+          const message = "Payment berhasil diubah menjadi FAILED.";
+          setSuccessMessage(message);
+          showToast({ type: "success", message });
+        } catch (err) {
+          console.log("ERROR PAYMENT FAILED:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message ||
+            "Gagal mengubah payment menjadi failed.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setUpdatingPaymentId(null);
+        }
+      },
+    });
   };
 
   const normalizedOrders = useMemo(() => {

@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
+import { useConfirm } from "../components/ui/ConfirmProvider";
+import { useToast } from "../components/ui/ToastProvider";
 import {
   cancelOrderApi,
   completeOrderApi,
@@ -43,6 +45,8 @@ const statusFilters = [
 ];
 
 function MyOrders() {
+  const { openConfirm } = useConfirm();
+  const { showToast } = useToast();
   const [orders, setOrders] = useState([]);
   const [paymentsByOrderId, setPaymentsByOrderId] = useState({});
 
@@ -55,7 +59,6 @@ function MyOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     loadOrders();
@@ -99,11 +102,12 @@ function MyOrders() {
       setPaymentsByOrderId(paymentMap);
     } catch (err) {
       console.log("ERROR LOAD MY ORDERS:", err);
-      setError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal mengambil data pesanan.",
-      );
+        err.response?.data?.error ||
+        "Gagal mengambil data pesanan.";
+      setError(message);
+      showToast({ type: "error", message });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -151,7 +155,6 @@ function MyOrders() {
     try {
       setActionLoading(`pay-${order.id}`);
       setError("");
-      setSuccessMessage("");
 
       const existingPayment = paymentsByOrderId[order.id];
 
@@ -178,71 +181,84 @@ function MyOrders() {
       window.location.href = redirectUrl;
     } catch (err) {
       console.log("ERROR PAY ORDER:", err);
-      setError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Gagal membuka pembayaran.",
-      );
+        err.response?.data?.error ||
+        err.message ||
+        "Gagal membuka pembayaran.";
+      setError(message);
+      showToast({ type: "error", message });
     } finally {
       setActionLoading("");
     }
   };
 
   const handleCancelOrder = async (order) => {
-    const confirmCancel = window.confirm(
-      `Batalkan pesanan ${order.orderNumber}?`,
-    );
+    openConfirm({
+      title: "Batalkan Pesanan?",
+      message: `Pesanan ${order.orderNumber} yang dibatalkan tidak bisa diproses lagi.`,
+      confirmText: "Ya, Batalkan",
+      cancelText: "Tidak",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setActionLoading(`cancel-${order.id}`);
+          setError("");
 
-    if (!confirmCancel) return;
+          await cancelOrderApi(order.id);
 
-    try {
-      setActionLoading(`cancel-${order.id}`);
-      setError("");
-      setSuccessMessage("");
-
-      await cancelOrderApi(order.id);
-
-      setSuccessMessage("Pesanan berhasil dibatalkan.");
-      await loadOrders({ silent: true });
-    } catch (err) {
-      console.log("ERROR CANCEL ORDER:", err);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal membatalkan pesanan.",
-      );
-    } finally {
-      setActionLoading("");
-    }
+          showToast({
+            type: "success",
+            message: "Pesanan berhasil dibatalkan.",
+          });
+          await loadOrders({ silent: true });
+        } catch (err) {
+          console.log("ERROR CANCEL ORDER:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            "Gagal membatalkan pesanan.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setActionLoading("");
+        }
+      },
+    });
   };
 
   const handleCompleteOrder = async (order) => {
-    const confirmComplete = window.confirm(
-      `Konfirmasi pesanan ${order.orderNumber} sudah diterima?`,
-    );
+    openConfirm({
+      title: "Pesanan Diterima?",
+      message: `Konfirmasi pesanan ${order.orderNumber} sudah diterima dan ubah status menjadi selesai.`,
+      confirmText: "Ya, Diterima",
+      cancelText: "Belum",
+      variant: "success",
+      onConfirm: async () => {
+        try {
+          setActionLoading(`complete-${order.id}`);
+          setError("");
 
-    if (!confirmComplete) return;
+          await completeOrderApi(order.id);
 
-    try {
-      setActionLoading(`complete-${order.id}`);
-      setError("");
-      setSuccessMessage("");
-
-      await completeOrderApi(order.id);
-
-      setSuccessMessage("Pesanan berhasil dikonfirmasi selesai.");
-      await loadOrders({ silent: true });
-    } catch (err) {
-      console.log("ERROR COMPLETE ORDER:", err);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal menyelesaikan pesanan.",
-      );
-    } finally {
-      setActionLoading("");
-    }
+          showToast({
+            type: "success",
+            message: "Pesanan berhasil dikonfirmasi selesai.",
+          });
+          await loadOrders({ silent: true });
+        } catch (err) {
+          console.log("ERROR COMPLETE ORDER:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            "Gagal menyelesaikan pesanan.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setActionLoading("");
+        }
+      },
+    });
   };
 
   return (
@@ -285,13 +301,6 @@ function MyOrders() {
           <div className="mb-5 flex items-start gap-3 rounded-2xl bg-red-100 px-4 py-3 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
             <AlertTriangle size={18} className="mt-0.5 shrink-0" />
             <span className="break-words">{error}</span>
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="mb-5 flex items-start gap-3 rounded-2xl bg-green-100 px-4 py-3 text-sm font-bold text-green-700 dark:bg-green-950/40 dark:text-green-300">
-            <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
-            <span className="break-words">{successMessage}</span>
           </div>
         )}
 

@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 import BrandLogo from "../../components/BrandLogo";
+import { useConfirm } from "../../components/ui/ConfirmProvider";
+import { useToast } from "../../components/ui/ToastProvider";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -68,6 +70,8 @@ function AdminPayments() {
 
   const { user, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { openConfirm } = useConfirm();
+  const { showToast } = useToast();
 
   const savedAdminProfile = getSavedAdminProfile();
 
@@ -318,66 +322,95 @@ const text =
   const handleMarkSuccess = async (payment) => {
     if (!payment?._id) return;
 
-    try {
-      setActionLoading(true);
-      setError("");
-      setSuccess("");
+    openConfirm({
+      title: "Mark Payment Success?",
+      message: `Payment ${payment.paymentNumber || payment._id} akan ditandai SUCCESS secara manual.`,
+      confirmText: "Mark Success",
+      cancelText: "Batal",
+      variant: "success",
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          setError("");
+          setSuccess("");
 
-      const updated = await markPaymentSuccessApi(payment._id);
+          const updated = await markPaymentSuccessApi(payment._id);
 
-      updatePaymentInState(payment._id, updated, "SUCCESS");
+          updatePaymentInState(payment._id, updated, "SUCCESS");
 
-      setSelectedPayment((prev) =>
-        normalizePayment({
-          ...prev,
-          ...updated,
-          status: updated?.status || "SUCCESS",
-        }),
-      );
+          setSelectedPayment((prev) =>
+            normalizePayment({
+              ...prev,
+              ...updated,
+              status: updated?.status || "SUCCESS",
+            }),
+          );
 
-      setSuccess("Payment berhasil ditandai SUCCESS.");
-    } catch (err) {
-      console.log(err);
+          setSuccess("Payment berhasil ditandai SUCCESS.");
+          showToast({
+            type: "success",
+            message: "Payment berhasil ditandai SUCCESS.",
+          });
+        } catch (err) {
+          console.log(err);
 
-      setError(
-        err.response?.data?.message ||
-          "Gagal mengubah payment menjadi SUCCESS.",
-      );
-    } finally {
-      setActionLoading(false);
-    }
+          const message =
+            err.response?.data?.message ||
+            "Gagal mengubah payment menjadi SUCCESS.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handleMarkFailed = async (payment) => {
     if (!payment?._id) return;
 
-    try {
-      setActionLoading(true);
-      setError("");
-      setSuccess("");
+    openConfirm({
+      title: "Mark Payment Failed?",
+      message: `Payment ${payment.paymentNumber || payment._id} akan ditandai FAILED secara manual.`,
+      confirmText: "Mark Failed",
+      cancelText: "Batal",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          setError("");
+          setSuccess("");
 
-      const updated = await markPaymentFailedApi(payment._id);
+          const updated = await markPaymentFailedApi(payment._id);
 
-      updatePaymentInState(payment._id, updated, "FAILED");
+          updatePaymentInState(payment._id, updated, "FAILED");
 
-      setSelectedPayment((prev) =>
-        normalizePayment({
-          ...prev,
-          ...updated,
-          status: updated?.status || "FAILED",
-        }),
-      );
+          setSelectedPayment((prev) =>
+            normalizePayment({
+              ...prev,
+              ...updated,
+              status: updated?.status || "FAILED",
+            }),
+          );
 
-      setSuccess("Payment berhasil ditandai FAILED.");
-    } catch (err) {
-      console.log(err);
+          setSuccess("Payment berhasil ditandai FAILED.");
+          showToast({
+            type: "success",
+            message: "Payment berhasil ditandai FAILED.",
+          });
+        } catch (err) {
+          console.log(err);
 
-      setError(
-        err.response?.data?.message || "Gagal mengubah payment menjadi FAILED.",
-      );
-    } finally {
-      setActionLoading(false);
-    }
+          const message =
+            err.response?.data?.message ||
+            "Gagal mengubah payment menjadi FAILED.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const resetFilters = () => {

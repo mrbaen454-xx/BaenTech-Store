@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
+import { useConfirm } from "../components/ui/ConfirmProvider";
+import { useToast } from "../components/ui/ToastProvider";
 import {
   clearCartApi,
   deleteCartItemApi,
@@ -26,6 +28,8 @@ import {
 const emptyCart = { totalItems: 0, totalPrice: 0, items: [] };
 
 function Cart() {
+  const { openConfirm } = useConfirm();
+  const { showToast } = useToast();
   const [cart, setCart] = useState(emptyCart);
   const [selectedItemIds, setSelectedItemIds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,11 +101,12 @@ function Cart() {
       setCart(normalizeCartData(data));
     } catch (err) {
       console.log("ERROR FETCH CART:", err);
-      setError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal mengambil data keranjang.",
-      );
+        err.response?.data?.error ||
+        "Gagal mengambil data keranjang.";
+      setError(message);
+      showToast({ type: "error", message });
       setCart(emptyCart);
     } finally {
       setLoading(false);
@@ -157,92 +162,127 @@ function Cart() {
       const data = await updateCartItemApi(itemId, quantity);
       setCart(normalizeCartData(data));
       setSuccessMessage("Jumlah produk berhasil diperbarui.");
+      showToast({
+        type: "success",
+        message: "Jumlah produk berhasil diperbarui.",
+      });
     } catch (err) {
       console.log("ERROR UPDATE CART:", err);
-      setError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal mengubah jumlah produk.",
-      );
+        err.response?.data?.error ||
+        "Gagal mengubah jumlah produk.";
+      setError(message);
+      showToast({ type: "error", message });
     } finally {
       setActionLoadingId(null);
     }
   };
 
-const deleteItem = async (item) => {
-  const itemId = getDeleteItemId(item);
+  const deleteItem = async (item) => {
+    const itemId = getDeleteItemId(item);
 
-  if (!itemId) {
-    setError("ID item keranjang tidak ditemukan.");
-    return;
-  }
+    if (!itemId) {
+      const message = "ID item keranjang tidak ditemukan.";
+      setError(message);
+      showToast({ type: "error", message });
+      return;
+    }
 
-  try {
-    setActionLoadingId(`delete-${itemId}`);
-    setError("");
-    setSuccessMessage("");
+    openConfirm({
+      title: "Hapus Produk?",
+      message: "Produk akan dihapus dari keranjang belanja.",
+      confirmText: "Ya, Hapus",
+      cancelText: "Batal",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setActionLoadingId(`delete-${itemId}`);
+          setError("");
+          setSuccessMessage("");
 
-    await deleteCartItemApi(itemId);
+          await deleteCartItemApi(itemId);
 
-    setCart((prev) => {
-      const prevItems = Array.isArray(prev.items) ? prev.items : [];
+          setCart((prev) => {
+            const prevItems = Array.isArray(prev.items) ? prev.items : [];
 
-      const nextItems = prevItems.filter((cartItem) => {
-        return String(cartItem.id) !== String(itemId);
-      });
+            const nextItems = prevItems.filter((cartItem) => {
+              return String(cartItem.id) !== String(itemId);
+            });
 
-      return normalizeCartData({
-        ...prev,
-        items: nextItems,
-        totalItems: nextItems.reduce(
-          (total, cartItem) => total + Number(cartItem.quantity || 0),
-          0,
-        ),
-        totalPrice: nextItems.reduce(
-          (total, cartItem) => total + getItemSubTotal(cartItem),
-          0,
-        ),
-      });
+            return normalizeCartData({
+              ...prev,
+              items: nextItems,
+              totalItems: nextItems.reduce(
+                (total, cartItem) => total + Number(cartItem.quantity || 0),
+                0,
+              ),
+              totalPrice: nextItems.reduce(
+                (total, cartItem) => total + getItemSubTotal(cartItem),
+                0,
+              ),
+            });
+          });
+
+          setSelectedItemIds((prev) =>
+            prev.filter((selectedId) => String(selectedId) !== String(itemId)),
+          );
+
+          window.dispatchEvent(new CustomEvent("baentech-cart-updated"));
+
+          setSuccessMessage("Produk berhasil dihapus dari keranjang.");
+          showToast({
+            type: "success",
+            message: "Produk berhasil dihapus dari keranjang.",
+          });
+        } catch (err) {
+          console.log("ERROR DELETE CART:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            "Gagal menghapus produk dari keranjang.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setActionLoadingId(null);
+        }
+      },
     });
-
-    setSelectedItemIds((prev) =>
-      prev.filter((selectedId) => String(selectedId) !== String(itemId)),
-    );
-
-    window.dispatchEvent(new CustomEvent("baentech-cart-updated"));
-
-    setSuccessMessage("Produk berhasil dihapus dari keranjang.");
-  } catch (err) {
-    console.log("ERROR DELETE CART:", err);
-    setError(
-      err.response?.data?.message ||
-        err.response?.data?.error ||
-        "Gagal menghapus produk dari keranjang.",
-    );
-  } finally {
-    setActionLoadingId(null);
-  }
-};
+  };
   const clearCart = async () => {
     if (!items.length) return;
 
-    try {
-      setClearing(true);
-      setError("");
-      setSuccessMessage("");
-      await clearCartApi();
-      setCart(emptyCart);
-      setSuccessMessage("Keranjang berhasil dikosongkan.");
-    } catch (err) {
-      console.log("ERROR CLEAR CART:", err);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal mengosongkan keranjang.",
-      );
-    } finally {
-      setClearing(false);
-    }
+    openConfirm({
+      title: "Kosongkan Keranjang?",
+      message: "Semua produk di keranjang akan dihapus.",
+      confirmText: "Ya, Kosongkan",
+      cancelText: "Batal",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setClearing(true);
+          setError("");
+          setSuccessMessage("");
+          await clearCartApi();
+          setCart(emptyCart);
+          setSuccessMessage("Keranjang berhasil dikosongkan.");
+          showToast({
+            type: "success",
+            message: "Keranjang berhasil dikosongkan.",
+          });
+        } catch (err) {
+          console.log("ERROR CLEAR CART:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            "Gagal mengosongkan keranjang.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setClearing(false);
+        }
+      },
+    });
   };
 
   return (

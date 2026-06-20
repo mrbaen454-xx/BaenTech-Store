@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
+import { useToast } from "../components/ui/ToastProvider";
 import { checkoutApi } from "../api/orderApi";
 import { createXenditPaymentApi } from "../api/paymentApi";
 import { getMyAddressesApi } from "../api/userProfileApi";
@@ -50,6 +51,7 @@ const paymentMethods = [
 
 function Checkout() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [checkoutData, setCheckoutData] = useState({
     items: [],
@@ -110,11 +112,12 @@ const loadCheckoutPageData = async () => {
 
     setAddresses([]);
 
-    setError(
+    const message =
       err.response?.data?.message ||
-        err.response?.data?.error ||
-        "Gagal mengambil data checkout.",
-    );
+      err.response?.data?.error ||
+      "Gagal mengambil data checkout.";
+    setError(message);
+    showToast({ type: "error", message });
   } finally {
     setLoading(false);
   }
@@ -191,6 +194,7 @@ const handleSubmit = async (e) => {
 
   if (validationMessage) {
     setError(validationMessage);
+    showToast({ type: "warning", message: validationMessage });
     return;
   }
 
@@ -228,7 +232,7 @@ const redirectUrl =
 
     if (!redirectUrl) {
       throw new Error(
-        "Redirect URL Midtrans tidak ditemukan dari payment-service.",
+        "Redirect URL Xendit tidak ditemukan dari payment-service.",
       );
     }
 
@@ -249,7 +253,11 @@ const redirectUrl =
 
     localStorage.removeItem("baentechCheckoutItems");
 
-   setSuccessMessage("Pesanan berhasil dibuat. Mengarahkan ke Xendit...");
+    setSuccessMessage("Pesanan berhasil dibuat. Mengarahkan ke Xendit...");
+    showToast({
+      type: "success",
+      message: "Pesanan berhasil dibuat. Mengarahkan ke Xendit...",
+    });
 
     setTimeout(() => {
       window.location.href = redirectUrl;
@@ -269,11 +277,12 @@ const redirectUrl =
       err.message ||
       "Gagal membuat checkout Xendit.";
 
-    setError(
+    const message =
       typeof backendMessage === "string"
         ? backendMessage
-        : JSON.stringify(backendMessage),
-    );
+        : JSON.stringify(backendMessage);
+    setError(message);
+    showToast({ type: "error", message });
   } finally {
     setSubmitting(false);
   }
@@ -666,7 +675,7 @@ function CheckoutSummary({ summary, paymentMethod, submitting }) {
 
         <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-semibold leading-5 text-slate-500 dark:bg-slate-950 dark:text-slate-400">
           Setelah pesanan dibuat, kamu akan diarahkan ke halaman pembayaran
-          Midtrans Sandbox.
+          Xendit.
         </p>
       </div>
     </aside>

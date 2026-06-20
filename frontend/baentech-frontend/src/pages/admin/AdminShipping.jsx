@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import BrandLogo from "../../components/BrandLogo";
+import { useConfirm } from "../../components/ui/ConfirmProvider";
+import { useToast } from "../../components/ui/ToastProvider";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { getAdminOrdersApi } from "../../api/orderApi";
@@ -53,6 +55,8 @@ function AdminShipping() {
 
   const { user, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { openConfirm } = useConfirm();
+  const { showToast } = useToast();
 
   const savedAdminProfile = getSavedAdminProfile();
 
@@ -406,12 +410,16 @@ function AdminShipping() {
     e.preventDefault();
 
     if (!formData.orderId) {
-      setError("Pilih order yang sudah PAID terlebih dahulu.");
+      const message = "Pilih order yang sudah PAID terlebih dahulu.";
+      setError(message);
+      showToast({ type: "warning", message });
       return;
     }
 
     if (!formData.courier || !formData.trackingNumber) {
-      setError("Courier dan nomor resi wajib diisi.");
+      const message = "Courier dan nomor resi wajib diisi.";
+      setError(message);
+      showToast({ type: "warning", message });
       return;
     }
 
@@ -434,16 +442,19 @@ function AdminShipping() {
       await createShippingApi(payload);
       await refreshSilently();
 
-      setSuccessMessage("Shipping berhasil dibuat.");
+      const message = "Shipping berhasil dibuat.";
+      setSuccessMessage(message);
+      showToast({ type: "success", message });
       closeCreateModal();
     } catch (err) {
       console.log("ERROR CREATE SHIPPING:", err);
-      setError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Gagal membuat shipping.",
-      );
+        err.response?.data?.error ||
+        err.message ||
+        "Gagal membuat shipping.";
+      setError(message);
+      showToast({ type: "error", message });
     } finally {
       setSaving(false);
     }
@@ -453,32 +464,44 @@ function AdminShipping() {
     const shippingId = shipping._id || getShippingId(shipping);
 
     if (!shippingId) {
-      setError("ID shipping tidak ditemukan.");
+      const message = "ID shipping tidak ditemukan.";
+      setError(message);
+      showToast({ type: "error", message });
       return;
     }
 
-    try {
-      setUpdatingShippingId(shippingId);
-      setError("");
-      setSuccessMessage("");
+    openConfirm({
+      title: "Ubah Status Shipping?",
+      message: `Status shipping ${shipping._shippingNumber || shippingId} akan diubah menjadi ${newStatus}.`,
+      confirmText: "Ubah Status",
+      cancelText: "Batal",
+      variant: newStatus === "CANCELLED" ? "danger" : "info",
+      onConfirm: async () => {
+        try {
+          setUpdatingShippingId(shippingId);
+          setError("");
+          setSuccessMessage("");
 
-      await updateShippingStatusApi(shippingId, newStatus);
-      await refreshSilently();
+          await updateShippingStatusApi(shippingId, newStatus);
+          await refreshSilently();
 
-      setSuccessMessage(
-        `Status shipping berhasil diubah menjadi ${newStatus}.`,
-      );
-    } catch (err) {
-      console.log("ERROR UPDATE SHIPPING STATUS:", err);
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Gagal mengubah status shipping.",
-      );
-    } finally {
-      setUpdatingShippingId(null);
-    }
+          const message = `Status shipping berhasil diubah menjadi ${newStatus}.`;
+          setSuccessMessage(message);
+          showToast({ type: "success", message });
+        } catch (err) {
+          console.log("ERROR UPDATE SHIPPING STATUS:", err);
+          const message =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message ||
+            "Gagal mengubah status shipping.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setUpdatingShippingId(null);
+        }
+      },
+    });
   };
 
   const resetFilters = () => {
@@ -996,11 +1019,11 @@ function CreateShippingModal({
   onSubmit,
 }) {
   return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+    <div className="fixed inset-0 z-[999] flex items-end justify-center bg-slate-950/60 px-3 pb-3 backdrop-blur-sm sm:items-center sm:p-6">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-slate-200 bg-white p-4 shadow-2xl transition duration-200 ease-out dark:border-slate-800 dark:bg-slate-900 sm:rounded-[2rem] sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-xl font-black text-slate-950 dark:text-white">
+            <h3 className="text-lg font-black text-slate-950 dark:text-white sm:text-xl">
               Create Shipping
             </h3>
             <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
@@ -1017,7 +1040,7 @@ function CreateShippingModal({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <form onSubmit={onSubmit} className="mt-5 space-y-4 sm:mt-6">
           <div>
             <label className="mb-2 block text-xs font-black uppercase text-slate-500 dark:text-slate-400">
               Order PAID
@@ -1112,11 +1135,11 @@ function CreateShippingModal({
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="grid gap-3 pt-2 sm:flex sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Cancel
             </button>
@@ -1124,7 +1147,7 @@ function CreateShippingModal({
             <button
               type="submit"
               disabled={saving}
-              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Saving..." : "Save Shipping"}
             </button>

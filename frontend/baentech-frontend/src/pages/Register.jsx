@@ -34,6 +34,12 @@ function Register() {
     });
   };
 
+  const handleGoogleLogin = () => {
+    const authBaseUrl =
+      import.meta.env.VITE_AUTH_API_BASE_URL || "http://localhost:8081";
+
+    window.location.href = `${authBaseUrl}/oauth2/authorization/google`;
+  };
   const handleRegister = async (e) => {
     e.preventDefault();
 
@@ -201,6 +207,26 @@ function Register() {
                 {loading ? "Mendaftarkan..." : "Daftar"}
               </button>
             </form>
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+              <span className="text-xs font-black uppercase text-slate-400">
+                atau
+              </span>
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google"
+                className="h-5 w-5"
+              />
+              Daftar dengan Google
+            </button>
 
             <p className="mt-7 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
               Sudah punya akun?{" "}

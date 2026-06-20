@@ -19,6 +19,7 @@ import Cart from "../pages/Cart";
 import Checkout from "../pages/Checkout";
 import PaymentResult from "../pages/PaymentResult";
 import MyOrders from "../pages/MyOrders";
+import OAuthSuccess from "../pages/OAuthSuccess";
 
 import ProtectedRoute, {
   GuestRoute,
@@ -71,6 +72,7 @@ function AppRoutes() {
           </GuestRoute>
         }
       />
+      <Route path="/oauth2/success" element={<OAuthSuccess />} />
 
       <Route
         path="/profile"
