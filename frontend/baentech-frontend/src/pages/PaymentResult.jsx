@@ -11,22 +11,27 @@ import {
   PackageCheck,
   ReceiptText,
   RefreshCw,
-  ShoppingBag,
   WalletCards,
   XCircle,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
-import { getPaymentByOrderIdApi } from "../api/paymentApi";
+import { useToast } from "../components/ui/ToastProvider";
+import {
+  createXenditPaymentApi,
+  getPaymentByOrderIdApi,
+} from "../api/paymentApi";
 
 function PaymentResult() {
   const location = useLocation();
+  const { showToast } = useToast();
 
   const [pendingPayment, setPendingPayment] = useState(null);
   const [payment, setPayment] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
 
   const pageStatus = useMemo(() => {
@@ -41,7 +46,13 @@ function PaymentResult() {
 
   useEffect(() => {
     loadPaymentData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
+
+  const savePaymentSnapshot = (nextData) => {
+    setPendingPayment(nextData);
+    localStorage.setItem("baentechPendingPayment", JSON.stringify(nextData));
+  };
 
   const loadPaymentData = async () => {
     try {
@@ -86,35 +97,35 @@ function PaymentResult() {
           pageStatus,
         );
 
-        localStorage.setItem(
-          "baentechPendingPayment",
-          JSON.stringify({
-            ...baseData,
-            lastStatus: normalizedStatus,
-            paymentId:
-              paymentData?.id || paymentData?.paymentId || saved.paymentId,
-            paymentNumber: paymentData?.paymentNumber || saved.paymentNumber,
-            gatewayOrderId:
-              paymentData?.gatewayOrderId || baseData.xenditExternalId,
-            gatewayInvoiceId:
-              paymentData?.gatewayInvoiceId || baseData.xenditInvoiceId,
-            redirectUrl: paymentData?.redirectUrl || saved.redirectUrl,
-            totalPrice: paymentData?.amount || saved.totalPrice,
-          }),
-        );
+        savePaymentSnapshot({
+          ...baseData,
+          lastStatus: normalizedStatus,
+          paymentId: paymentData?.id || paymentData?.paymentId || saved.paymentId,
+          paymentNumber: paymentData?.paymentNumber || saved.paymentNumber,
+          gatewayOrderId:
+            paymentData?.gatewayOrderId || baseData.xenditExternalId,
+          gatewayInvoiceId:
+            paymentData?.gatewayInvoiceId || baseData.xenditInvoiceId,
+          redirectUrl:
+            getRedirectUrl(paymentData) || saved.redirectUrl || baseData.redirectUrl,
+          totalPrice: paymentData?.amount || saved.totalPrice,
+          paymentMethod:
+            paymentData?.paymentMethod || saved.paymentMethod || "QRIS",
+        });
       } else {
         setError(
-          "Data order belum ditemukan di browser. Silakan cek status dari halaman pesanan nanti.",
+          "Data order belum ditemukan di browser. Silakan buka halaman My Orders untuk melanjutkan pembayaran.",
         );
       }
     } catch (err) {
       console.log("ERROR LOAD PAYMENT RESULT:", err);
-      setError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Belum bisa mengambil status payment terbaru.",
-      );
+        err.response?.data?.error ||
+        err.message ||
+        "Belum bisa mengambil status payment terbaru.";
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -139,29 +150,106 @@ function PaymentResult() {
         pageStatus,
       );
 
-      localStorage.setItem(
-        "baentechPendingPayment",
-        JSON.stringify({
-          ...pendingPayment,
-          lastStatus: normalizedStatus,
-          paymentId: paymentData?.id || paymentData?.paymentId,
-          paymentNumber: paymentData?.paymentNumber,
-          gatewayOrderId: paymentData?.gatewayOrderId,
-          gatewayInvoiceId: paymentData?.gatewayInvoiceId,
-          redirectUrl: paymentData?.redirectUrl || pendingPayment?.redirectUrl,
-          totalPrice: paymentData?.amount || pendingPayment?.totalPrice,
-        }),
-      );
+      savePaymentSnapshot({
+        ...pendingPayment,
+        lastStatus: normalizedStatus,
+        paymentId: paymentData?.id || paymentData?.paymentId,
+        paymentNumber: paymentData?.paymentNumber,
+        gatewayOrderId: paymentData?.gatewayOrderId,
+        gatewayInvoiceId: paymentData?.gatewayInvoiceId,
+        redirectUrl: getRedirectUrl(paymentData) || pendingPayment?.redirectUrl,
+        totalPrice: paymentData?.amount || pendingPayment?.totalPrice,
+        paymentMethod:
+          paymentData?.paymentMethod || pendingPayment?.paymentMethod || "QRIS",
+      });
+
+      showToast({ type: "success", message: "Status pembayaran diperbarui." });
     } catch (err) {
       console.log("ERROR CHECK PAYMENT:", err);
-      setError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          err.message ||
-          "Gagal mengecek status payment.",
-      );
+        err.response?.data?.error ||
+        err.message ||
+        "Gagal mengecek status payment.";
+
+      setError(message);
+      showToast({ type: "error", message });
     } finally {
       setChecking(false);
+    }
+  };
+
+  const handlePayAgain = async () => {
+    try {
+      setPaying(true);
+      setError("");
+
+      const orderId = payment?.orderId || pendingPayment?.orderId;
+
+      if (!orderId) {
+        throw new Error("Order ID tidak ditemukan. Buka My Orders untuk bayar ulang.");
+      }
+
+      const existingRedirectUrl =
+        getRedirectUrl(payment) || pendingPayment?.redirectUrl;
+
+      if (existingRedirectUrl) {
+        window.location.href = existingRedirectUrl;
+        return;
+      }
+
+      const newPayment = await createXenditPaymentApi({
+        orderId,
+        paymentMethod: pendingPayment?.paymentMethod || payment?.paymentMethod || "QRIS",
+      });
+
+      const redirectUrl = getRedirectUrl(newPayment);
+
+      if (!redirectUrl) {
+        throw new Error("URL pembayaran Xendit tidak ditemukan.");
+      }
+
+      setPayment(newPayment);
+      savePaymentSnapshot({
+        ...pendingPayment,
+        orderId,
+        paymentId: newPayment?.id || newPayment?.paymentId,
+        paymentNumber: newPayment?.paymentNumber || pendingPayment?.paymentNumber,
+        gatewayOrderId:
+          newPayment?.gatewayOrderId || pendingPayment?.gatewayOrderId,
+        gatewayInvoiceId:
+          newPayment?.gatewayInvoiceId || pendingPayment?.gatewayInvoiceId,
+        redirectUrl,
+        paymentMethod:
+          newPayment?.paymentMethod || pendingPayment?.paymentMethod || "QRIS",
+        totalPrice: newPayment?.amount || pendingPayment?.totalPrice,
+        lastStatus: normalizePaymentStatus(
+          newPayment?.status || newPayment?.transactionStatus,
+          pageStatus,
+        ),
+        createdAt: new Date().toISOString(),
+      });
+
+      showToast({
+        type: "success",
+        message: "Invoice Xendit dibuat ulang. Mengarahkan ke pembayaran...",
+      });
+
+      setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 300);
+    } catch (err) {
+      console.log("ERROR PAY AGAIN:", err);
+      const message =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        "Gagal membuka pembayaran Xendit.";
+
+      setError(message);
+      showToast({ type: "error", message });
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -177,19 +265,20 @@ function PaymentResult() {
   const StatusIcon = view.icon;
 
   const gateway = payment?.gateway || "XENDIT";
-  const redirectUrl = payment?.redirectUrl || pendingPayment?.redirectUrl;
+  const redirectUrl = getRedirectUrl(payment) || pendingPayment?.redirectUrl;
+  const orderId = payment?.orderId || pendingPayment?.orderId;
   const isSuccess = paymentStatus === "SUCCESS";
   const isFailed = ["FAILED", "CANCELLED", "EXPIRED"].includes(paymentStatus);
-  const canPayAgain = Boolean(redirectUrl) && !isSuccess;
+  const canPayAgain = Boolean(orderId) && !isSuccess;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950">
       <Navbar />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <Link
           to="/products"
-          className="mb-6 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm transition hover:text-blue-600 dark:bg-slate-900 dark:text-slate-200"
+          className="mb-6 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:text-blue-600 dark:bg-slate-900 dark:text-slate-200"
         >
           <ArrowLeft size={17} />
           Kembali Belanja
@@ -198,9 +287,9 @@ function PaymentResult() {
         {loading ? (
           <LoadingCard />
         ) : (
-          <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm transition duration-300 dark:border-slate-800 dark:bg-slate-900">
             <div
-              className={`p-6 text-white sm:p-8 ${
+              className={`p-5 text-white sm:p-8 ${
                 view.color === "green"
                   ? "bg-green-600"
                   : view.color === "red"
@@ -210,12 +299,12 @@ function PaymentResult() {
             >
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-white/15">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-white/15 sm:h-16 sm:w-16">
                     <StatusIcon size={34} />
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-sm font-black uppercase tracking-wide text-white/80">
+                    <p className="text-xs font-black uppercase tracking-wide text-white/80 sm:text-sm">
                       Xendit Payment Gateway
                     </p>
 
@@ -236,7 +325,7 @@ function PaymentResult() {
               </div>
             </div>
 
-            <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-8">
+            <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-8">
               <div className="min-w-0 space-y-6">
                 {error && (
                   <div className="flex items-start gap-3 rounded-2xl bg-yellow-100 px-4 py-3 text-sm font-bold text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300">
@@ -245,7 +334,7 @@ function PaymentResult() {
                   </div>
                 )}
 
-                <div className="rounded-3xl bg-slate-50 p-5 dark:bg-slate-950 sm:p-6">
+                <div className="rounded-3xl bg-slate-50 p-4 dark:bg-slate-950 sm:p-6">
                   <div className="mb-5 flex items-center gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
                       <ReceiptText size={22} />
@@ -256,31 +345,21 @@ function PaymentResult() {
                         Detail Pembayaran
                       </h2>
                       <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 sm:text-sm">
-                        Data ini diambil dari payment-service setelah callback
-                        Xendit.
+                        Data ini diambil dari payment-service setelah callback Xendit.
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <ResultRow
-                      label="Order ID"
-                      value={pendingPayment?.orderId || payment?.orderId || "-"}
-                    />
+                    <ResultRow label="Order ID" value={orderId || "-"} />
                     <ResultRow
                       label="Order Number"
-                      value={
-                        payment?.orderNumber ||
-                        pendingPayment?.orderNumber ||
-                        "-"
-                      }
+                      value={payment?.orderNumber || pendingPayment?.orderNumber || "-"}
                     />
                     <ResultRow
                       label="Payment Number"
                       value={
-                        payment?.paymentNumber ||
-                        pendingPayment?.paymentNumber ||
-                        "-"
+                        payment?.paymentNumber || pendingPayment?.paymentNumber || "-"
                       }
                     />
                     <ResultRow
@@ -292,16 +371,12 @@ function PaymentResult() {
                     <ResultRow
                       label="Metode"
                       value={
-                        payment?.paymentMethod ||
-                        pendingPayment?.paymentMethod ||
-                        "-"
+                        payment?.paymentMethod || pendingPayment?.paymentMethod || "-"
                       }
                     />
                     <ResultRow
                       label="Channel Xendit"
-                      value={
-                        payment?.paymentChannel || payment?.paymentType || "-"
-                      }
+                      value={payment?.paymentChannel || payment?.paymentType || "-"}
                     />
                     <ResultRow
                       label="Tujuan Pembayaran"
@@ -345,13 +420,13 @@ function PaymentResult() {
                     ? "Pembayaran sudah berhasil. Pesanan kamu akan masuk ke proses admin."
                     : isFailed
                       ? "Pembayaran gagal atau kedaluwarsa. Kamu bisa mencoba bayar ulang."
-                      : "Kalau status belum berubah, klik cek status. Callback Xendit kadang butuh beberapa detik."}
+                      : "Kalau belum sempat masuk Xendit, klik Bayar Sekarang. Kalau sudah bayar, klik Cek Status."}
                 </p>
 
                 <button
                   type="button"
                   onClick={handleCheckStatus}
-                  disabled={checking}
+                  disabled={checking || paying}
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {checking ? (
@@ -363,13 +438,25 @@ function PaymentResult() {
                 </button>
 
                 {canPayAgain && (
-                  <a
-                    href={redirectUrl}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-600 px-5 py-3 text-sm font-black text-blue-600 transition hover:bg-blue-600 hover:text-white dark:text-blue-400"
+                  <button
+                    type="button"
+                    onClick={handlePayAgain}
+                    disabled={paying || checking}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-600 px-5 py-3 text-sm font-black text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 dark:text-blue-400"
                   >
-                    <ExternalLink size={18} />
-                    Bayar Lagi
-                  </a>
+                    {paying ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : redirectUrl ? (
+                      <ExternalLink size={18} />
+                    ) : (
+                      <CreditCard size={18} />
+                    )}
+                    {paying
+                      ? "Membuka Xendit..."
+                      : redirectUrl
+                        ? "Bayar Lagi"
+                        : "Bayar Sekarang"}
+                  </button>
                 )}
 
                 <Link
@@ -389,9 +476,8 @@ function PaymentResult() {
                 </Link>
 
                 <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-xs font-semibold leading-5 text-slate-500 dark:bg-slate-950 dark:text-slate-400">
-                  Halaman pesanan user belum dibuat. Nanti setelah halaman
-                  <span className="font-black"> My Orders </span>
-                  selesai, tombol ini kita arahkan ke detail pesanan.
+                  Buka <span className="font-black">My Orders</span> untuk melihat
+                  detail pesanan dan riwayat pembayaran kamu.
                 </div>
               </aside>
             </div>
@@ -550,6 +636,10 @@ function normalizePaymentStatus(value, pageStatus) {
   }
 
   return "PENDING";
+}
+
+function getRedirectUrl(payment) {
+  return payment?.redirectUrl || payment?.invoiceUrl || payment?.invoice_url || "";
 }
 
 function safeParseJSON(value, fallback) {
