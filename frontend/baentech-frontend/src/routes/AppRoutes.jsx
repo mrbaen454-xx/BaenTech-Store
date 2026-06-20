@@ -8,6 +8,7 @@ import ProductDetail from "../pages/ProductDetail";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminProducts from "../pages/admin/AdminProducts";
 import AdminProductForm from "../pages/admin/AdminProductFrom";
+import AdminProductReviews from "../pages/admin/AdminProductReviews";
 import AdminProfile from "../pages/admin/AdminProfile";
 import AdminCategories from "../pages/admin/AdminCategories";
 import AdminOrders from "../pages/admin/AdminOrders";
@@ -136,7 +137,7 @@ function AppRoutes() {
         path="/admin/products/:id/reviews"
         element={
           <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
-            <ProductDetail />
+            <AdminProductReviews />
           </ProtectedRoute>
         }
       />
