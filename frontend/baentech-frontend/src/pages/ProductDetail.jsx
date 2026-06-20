@@ -26,11 +26,13 @@ import {
 } from "../api/productApi";
 import { useAuth } from "../context/AuthContext";
 import { addCartItemApi } from "../api/cartApi";
+import { useToast } from "../components/ui/ToastProvider";
 
 function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
+  const { showToast } = useToast();
 
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -44,14 +46,13 @@ function ProductDetail() {
     comment: "",
   });
 
- const [loading, setLoading] = useState(true);
- const [reviewLoading, setReviewLoading] = useState(false);
- const [deleteReviewLoadingId, setDeleteReviewLoadingId] = useState(null);
- const [cartLoading, setCartLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [deleteReviewLoadingId, setDeleteReviewLoadingId] = useState(null);
+  const [cartLoading, setCartLoading] = useState(false);
 
   const [error, setError] = useState("");
   const [reviewError, setReviewError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   const productBaseUrl =
     import.meta.env.VITE_PRODUCT_API_BASE_URL ||
@@ -67,7 +68,6 @@ function ProductDetail() {
       setLoading(true);
       setError("");
       setReviewError("");
-      setSuccessMessage("");
 
       const [productResult, reviewsResult, summaryResult] = await Promise.allSettled([
         getProductByIdApi(id),
@@ -100,7 +100,9 @@ function ProductDetail() {
       }
     } catch (err) {
       console.log(err);
-      setError("Gagal mengambil detail produk.");
+      const message = "Gagal mengambil detail produk.";
+      setError(message);
+      showToast({ type: "error", message });
     } finally {
       setLoading(false);
     }
@@ -147,44 +149,51 @@ function ProductDetail() {
     return `${productBaseUrl}${rawImage}`;
   };
 
-const handleBuy = async () => {
-  if (!isAuthenticated) {
-    navigate("/login", {
-      state: {
-        from: `/products/${id}`,
-      },
-    });
-    return;
-  }
+  const handleBuy = async () => {
+    if (!isAuthenticated) {
+      navigate("/login", {
+        state: {
+          from: `/products/${id}`,
+        },
+      });
+      return;
+    }
 
-  const productId = product?.id || product?.productId || id;
+    const productId = product?.id || product?.productId || id;
 
-  if (!productId) {
-    setError("ID produk tidak ditemukan.");
-    return;
-  }
+    if (!productId) {
+      const message = "ID produk tidak ditemukan.";
+      setError(message);
+      showToast({ type: "error", message });
+      return;
+    }
 
-  try {
-    setCartLoading(true);
-    setError("");
-    setReviewError("");
-    setSuccessMessage("");
+    try {
+      setCartLoading(true);
+      setError("");
+      setReviewError("");
 
-    await addCartItemApi(productId, 1);
+      await addCartItemApi(productId, 1);
 
-    setSuccessMessage("Produk berhasil ditambahkan ke keranjang.");
-  } catch (err) {
-    console.log("ERROR ADD TO CART:", err);
+      showToast({
+        type: "success",
+        title: "Berhasil",
+        message: "Produk berhasil ditambahkan ke keranjang.",
+      });
+    } catch (err) {
+      console.log("ERROR ADD TO CART:", err);
 
-    setError(
-      err.response?.data?.message ||
+      const message =
+        err.response?.data?.message ||
         err.response?.data?.error ||
-        "Gagal menambahkan produk ke keranjang.",
-    );
-  } finally {
-    setCartLoading(false);
-  }
-};
+        "Gagal menambahkan produk ke keranjang.";
+
+      setError(message);
+      showToast({ type: "error", message });
+    } finally {
+      setCartLoading(false);
+    }
+  };
 
   const handleRatingChange = (rating) => {
     setReviewForm((prev) => ({
@@ -225,7 +234,6 @@ const handleBuy = async () => {
     try {
       setReviewLoading(true);
       setReviewError("");
-      setSuccessMessage("");
 
       await createOrUpdateProductReviewApi(id, {
         userName: getDisplayName(user),
@@ -240,14 +248,20 @@ const handleBuy = async () => {
 
       await refreshReviews();
 
-      setSuccessMessage("Ulasan berhasil disimpan.");
+      showToast({
+        type: "success",
+        title: "Ulasan tersimpan",
+        message: "Ulasan berhasil disimpan.",
+      });
     } catch (err) {
       console.log("ERROR ADD REVIEW:", err);
-      setReviewError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal menyimpan ulasan.",
-      );
+        err.response?.data?.error ||
+        "Gagal menyimpan ulasan.";
+
+      setReviewError(message);
+      showToast({ type: "error", message });
     } finally {
       setReviewLoading(false);
     }
@@ -257,19 +271,24 @@ const handleBuy = async () => {
     try {
       setDeleteReviewLoadingId(reviewId);
       setReviewError("");
-      setSuccessMessage("");
 
       await deleteProductReviewApi(reviewId);
       await refreshReviews();
 
-      setSuccessMessage("Ulasan berhasil dihapus.");
+      showToast({
+        type: "success",
+        title: "Ulasan dihapus",
+        message: "Ulasan berhasil dihapus.",
+      });
     } catch (err) {
       console.log("ERROR DELETE REVIEW:", err);
-      setReviewError(
+      const message =
         err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Gagal menghapus ulasan.",
-      );
+        err.response?.data?.error ||
+        "Gagal menghapus ulasan.";
+
+      setReviewError(message);
+      showToast({ type: "error", message });
     } finally {
       setDeleteReviewLoadingId(null);
     }
@@ -323,8 +342,8 @@ const handleBuy = async () => {
 
         {loading && (
           <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-            <div className="h-80 animate-pulse rounded-3xl bg-white dark:bg-slate-900 sm:h-[500px]"></div>
-            <div className="h-80 animate-pulse rounded-3xl bg-white dark:bg-slate-900 sm:h-[500px]"></div>
+            <div className="h-80 animate-pulse rounded-3xl bg-white dark:bg-slate-900 sm:h-[500px]" />
+            <div className="h-80 animate-pulse rounded-3xl bg-white dark:bg-slate-900 sm:h-[500px]" />
           </div>
         )}
 
@@ -471,7 +490,6 @@ const handleBuy = async () => {
 
             <section className="mt-6 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:gap-6 sm:mt-8">
               <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:rounded-3xl sm:p-6">
-                {" "}
                 <div className="mb-4 flex items-start gap-3 sm:mb-5">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300 sm:h-12 sm:w-12 sm:rounded-2xl">
                     <MessageSquareText className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -491,11 +509,6 @@ const handleBuy = async () => {
                   <div className="mb-4 flex items-start gap-3 rounded-2xl bg-red-100 px-4 py-3 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
                     <AlertTriangle size={17} className="mt-0.5 shrink-0" />
                     <span className="break-words">{reviewError}</span>
-                  </div>
-                )}
-                {successMessage && (
-                  <div className="mb-4 rounded-2xl bg-green-100 px-4 py-3 text-sm font-bold text-green-700 dark:bg-green-950/40 dark:text-green-300">
-                    {successMessage}
                   </div>
                 )}
                 <form onSubmit={handleSubmitReview} className="space-y-5">
@@ -546,7 +559,6 @@ const handleBuy = async () => {
               </div>
 
               <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:rounded-3xl sm:p-6">
-                {" "}
                 <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <h2 className="text-base font-black text-slate-950 dark:text-white sm:text-xl">
@@ -674,6 +686,7 @@ function StarRating({ value, onChange, readOnly = false, size = "md" }) {
     </div>
   );
 }
+
 function ReviewCard({ review, canDelete = false, deleting = false, onDelete }) {
   return (
     <div className="min-w-0 rounded-2xl bg-slate-50 p-3 dark:bg-slate-950 sm:rounded-3xl sm:p-5">
