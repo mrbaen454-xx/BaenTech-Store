@@ -5,7 +5,6 @@ import com.baentech.payment_service.payload.client.OrderClientResponse;
 import com.baentech.payment_service.payload.res.XenditInvoiceResponse;
 import com.baentech.payment_service.service.XenditService;
 
-
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -27,7 +26,7 @@ public class XenditServiceImpl implements XenditService {
     private final WebClient.Builder plainWebClientBuilder;
 
     public XenditServiceImpl(
-        @Qualifier("plainWebClientBuilder") WebClient.Builder plainWebClientBuilder) {
+            @Qualifier("plainWebClientBuilder") WebClient.Builder plainWebClientBuilder) {
         this.plainWebClientBuilder = plainWebClientBuilder;
     }
 
@@ -43,19 +42,8 @@ public class XenditServiceImpl implements XenditService {
     @Override
     public XenditInvoiceResponse createInvoice(Payment payment, OrderClientResponse order) {
         try {
-            String cleanSecretKey = secretKey == null ? "" : secretKey.trim();
-
-            if (secretKey == null || secretKey.isBlank()) {
-                throw new RuntimeException("Xendit secret key belum diisi");
-            }
-
-            if (secretKey.startsWith("xnd_public")) {
-                throw new RuntimeException(
-                        "Xendit secret key salah. Jangan pakai Public Key, pakai Secret Key dari dashboard Xendit.");
-            }
-
-            String basicAuth = Base64.getEncoder()
-                    .encodeToString((cleanSecretKey + ":").getBytes(StandardCharsets.UTF_8));
+            String cleanSecretKey = getCleanSecretKey();
+            String basicAuth = buildBasicAuth(cleanSecretKey);
 
             Map<String, Object> body = buildInvoiceRequestBody(payment, order);
 
@@ -81,6 +69,60 @@ public class XenditServiceImpl implements XenditService {
         } catch (Exception e) {
             throw new RuntimeException("Gagal membuat invoice Xendit: " + e.getMessage());
         }
+    }
+
+    @Override
+    public XenditInvoiceResponse getInvoice(String invoiceId) {
+        try {
+            if (invoiceId == null || invoiceId.isBlank()) {
+                throw new RuntimeException("Invoice ID Xendit kosong");
+            }
+
+            String cleanSecretKey = getCleanSecretKey();
+            String basicAuth = buildBasicAuth(cleanSecretKey);
+            String baseInvoiceUrl = invoiceUrl.endsWith("/")
+                    ? invoiceUrl.substring(0, invoiceUrl.length() - 1)
+                    : invoiceUrl;
+
+            XenditInvoiceResponse response = plainWebClientBuilder.build()
+                    .get()
+                    .uri(baseInvoiceUrl + "/" + invoiceId)
+                    .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuth)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .bodyToMono(XenditInvoiceResponse.class)
+                    .block();
+
+            if (response == null) {
+                throw new RuntimeException("Response invoice Xendit kosong");
+            }
+
+            return response;
+
+        } catch (WebClientResponseException e) {
+            throw new RuntimeException("Gagal mengambil invoice Xendit: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal mengambil invoice Xendit: " + e.getMessage());
+        }
+    }
+
+    private String getCleanSecretKey() {
+        String cleanSecretKey = secretKey == null ? "" : secretKey.trim();
+
+        if (cleanSecretKey.isBlank()) {
+            throw new RuntimeException("Xendit secret key belum diisi");
+        }
+
+        if (cleanSecretKey.startsWith("xnd_public")) {
+            throw new RuntimeException("Xendit secret key salah. Jangan pakai Public Key, pakai Secret Key dari dashboard Xendit.");
+        }
+
+        return cleanSecretKey;
+    }
+
+    private String buildBasicAuth(String cleanSecretKey) {
+        return Base64.getEncoder()
+                .encodeToString((cleanSecretKey + ":").getBytes(StandardCharsets.UTF_8));
     }
 
     private Map<String, Object> buildInvoiceRequestBody(Payment payment, OrderClientResponse order) {
