@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { loginApi } from "../api/authApi";
 
 const AuthContext = createContext();
@@ -88,9 +88,120 @@ const clearAuthStorage = () => {
   localStorage.removeItem("userProfile");
 };
 
+const cleanBearerToken = (token) => {
+  if (!token) return "";
+
+  return token.startsWith("Bearer ") ? token.replace("Bearer ", "") : token;
+};
+
+const buildUserFromSession = (token, existingUser = null, fallbackUser = {}) => {
+  const payload = decodeJwtPayload(token);
+  const role = normalizeRole(
+    getRoleFromToken(token) ||
+      existingUser?.role ||
+      fallbackUser?.role ||
+      localStorage.getItem("role") ||
+      "USER",
+  );
+
+  const email =
+    fallbackUser?.email ||
+    existingUser?.email ||
+    payload.email ||
+    payload.sub ||
+    "";
+
+  const name =
+    fallbackUser?.name ||
+    fallbackUser?.fullName ||
+    fallbackUser?.nama ||
+    existingUser?.name ||
+    existingUser?.fullName ||
+    existingUser?.nama ||
+    payload.name ||
+    payload.fullName ||
+    payload.nama ||
+    email ||
+    "User";
+
+  return {
+    ...(existingUser || {}),
+    ...(fallbackUser || {}),
+    email,
+    role,
+    name,
+  };
+};
+
+const saveAuthSession = (token, user) => {
+  localStorage.setItem("token", token);
+  localStorage.setItem("role", user?.role || "USER");
+  localStorage.setItem("user", JSON.stringify(user || null));
+};
+
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(getTokenFromStorage());
   const [user, setUser] = useState(getSavedUser());
+
+  const setSessionFromToken = useCallback((incomingToken, fallbackUser = {}) => {
+    const cleanToken = cleanBearerToken(incomingToken);
+
+    if (!cleanToken) {
+      clearAuthStorage();
+      setToken(null);
+      setUser(null);
+      return null;
+    }
+
+    const sessionUser = buildUserFromSession(cleanToken, getSavedUser(), fallbackUser);
+
+    saveAuthSession(cleanToken, sessionUser);
+    setToken(cleanToken);
+    setUser(sessionUser);
+
+    return sessionUser;
+  }, []);
+
+  const refreshAuthSession = useCallback(() => {
+    const savedToken = cleanBearerToken(getTokenFromStorage());
+
+    if (!savedToken) {
+      setToken(null);
+      setUser(null);
+      return null;
+    }
+
+    return setSessionFromToken(savedToken, getSavedUser() || {});
+  }, [setSessionFromToken]);
+
+  useEffect(() => {
+    refreshAuthSession();
+
+    const handleAuthStorageChange = (event) => {
+      if (
+        event &&
+        !["token", "accessToken", "jwt", "authToken", "role", "user"].includes(
+          event.key,
+        )
+      ) {
+        return;
+      }
+
+      refreshAuthSession();
+    };
+
+    const handleAuthChanged = () => {
+      refreshAuthSession();
+    };
+
+    window.addEventListener("storage", handleAuthStorageChange);
+    window.addEventListener("baentech-auth-changed", handleAuthChanged);
+
+    return () => {
+      window.removeEventListener("storage", handleAuthStorageChange);
+      window.removeEventListener("baentech-auth-changed", handleAuthChanged);
+    };
+  }, [refreshAuthSession]);
 
   const login = async (email, password) => {
     clearAuthStorage();
@@ -111,9 +222,7 @@ export const AuthProvider = ({ children }) => {
       throw new Error("Token tidak ditemukan dari response backend");
     }
 
-    const cleanToken = loginToken.startsWith("Bearer ")
-      ? loginToken.replace("Bearer ", "")
-      : loginToken;
+    const cleanToken = cleanBearerToken(loginToken);
 
     const roleFromToken = getRoleFromToken(cleanToken);
     const roleFromResponse = normalizeRole(
@@ -145,12 +254,12 @@ export const AuthProvider = ({ children }) => {
         email,
     };
 
-    localStorage.setItem("token", cleanToken);
-    localStorage.setItem("role", finalRole);
-    localStorage.setItem("user", JSON.stringify(loginUser));
+    saveAuthSession(cleanToken, loginUser);
 
     setToken(cleanToken);
     setUser(loginUser);
+
+    window.dispatchEvent(new Event("baentech-auth-changed"));
 
     return loginUser;
   };
@@ -159,6 +268,7 @@ export const AuthProvider = ({ children }) => {
     clearAuthStorage();
     setToken(null);
     setUser(null);
+    window.dispatchEvent(new Event("baentech-auth-changed"));
   };
 
   return (
@@ -168,6 +278,8 @@ export const AuthProvider = ({ children }) => {
         user,
         login,
         logout,
+        setSessionFromToken,
+        refreshAuthSession,
         isAuthenticated: Boolean(token),
       }}
     >
