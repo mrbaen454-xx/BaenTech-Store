@@ -62,6 +62,11 @@ public class GatewayRoutesConfig {
                                                 .path("/api/reports/**")
                                                 .uri("lb://REPORT-SERVICE"))
 
+                                // NOTIFICATION SERVICE
+                                .route("notification-service", r -> r
+                                                .path("/api/notifications/**")
+                                                .uri("lb://NOTIFICATION-SERVICE"))
+
                                 .build();
         }
 }
