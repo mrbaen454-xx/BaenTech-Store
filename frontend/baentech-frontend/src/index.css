@@ -5,6 +5,29 @@
 * {
   transition: background-color 0.2s ease, color 0.2s ease,
     border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.75) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.72);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.88);
+  background-clip: padding-box;
 }
 
 html,
@@ -13,11 +36,26 @@ body,
   min-height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
+  overflow-x: hidden;
   background-color: #e5e7eb;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+  color: #0f172a;
+}
+
+.dark ::selection {
+  background: rgba(96, 165, 250, 0.25);
+  color: #f8fafc;
 }
 
 html:not(.dark) #root {
@@ -59,9 +97,49 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
+main table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+main thead th:first-child {
+  border-top-left-radius: 1rem;
+}
+
+main thead th:last-child {
+  border-top-right-radius: 1rem;
+}
+
+main tbody tr {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+main input::placeholder,
+main textarea::placeholder {
+  color: #94a3b8;
+}
+
+.dark main input::placeholder,
+.dark main textarea::placeholder {
+  color: #64748b;
+}
+
+main select {
+  cursor: pointer;
+}
+
+main img {
+  background-color: rgba(241, 245, 249, 0.85);
+}
+
+.dark main img {
+  background-color: rgba(15, 23, 42, 0.85);
+}
+
 @media (hover: hover) {
   main button:not(:disabled):hover,
-  main a:hover {
+  main a:hover,
+  main tbody tr:hover {
     transform: translateY(-1px);
   }
 }
@@ -146,4 +224,15 @@ textarea:focus-visible {
 
 .dark .admin-input:focus {
   border-color: #3b82f6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
