@@ -1,31 +1,136 @@
 # BaenTech Store
 
-BaenTech Store adalah aplikasi e-commerce toko elektronik berbasis **Java Spring Boot Microservices**. Project ini dibuat untuk mengelola proses belanja online mulai dari autentikasi user, manajemen produk, keranjang, checkout, pembayaran, pengiriman barang, notifikasi email, sampai laporan penjualan dalam bentuk Excel.
+BaenTech Store adalah aplikasi **e-commerce toko teknologi/elektronik** berbasis **React Frontend** dan **Java Spring Boot Microservices**. Project ini dibuat untuk mengelola proses belanja online mulai dari autentikasi user, manajemen produk, keranjang, checkout, pembayaran Xendit, pengiriman barang, ulasan produk, sampai laporan penjualan untuk admin.
+
+Project ini disusun untuk kebutuhan pembelajaran, portofolio, dan presentasi akhir project. Struktur project dipisahkan antara frontend, backend microservices, database script, dokumentasi, dan file persiapan deploy.
+
+---
+
+## Daftar Isi
+
+- [Fitur Utama](#fitur-utama)
+- [Tech Stack](#tech-stack)
+- [Arsitektur Sistem](#arsitektur-sistem)
+- [Struktur Folder](#struktur-folder)
+- [Daftar Service dan Port](#daftar-service-dan-port)
+- [Database](#database)
+- [Alur Sistem](#alur-sistem)
+- [Role dan Hak Akses](#role-dan-hak-akses)
+- [Konfigurasi Environment](#konfigurasi-environment)
+- [Cara Menjalankan Project Lokal](#cara-menjalankan-project-lokal)
+- [Endpoint Utama](#endpoint-utama)
+- [Catatan Docker dan Deploy](#catatan-docker-dan-deploy)
+- [File Pengumpulan Project](#file-pengumpulan-project)
+- [Catatan Keamanan](#catatan-keamanan)
+
+---
+
+## Fitur Utama
+
+### User
+
+- Register akun user.
+- Login menggunakan email dan password.
+- Login menggunakan Google OAuth2.
+- Melihat daftar produk.
+- Melihat detail produk.
+- Menambahkan produk ke cart.
+- Mengubah quantity produk di cart.
+- Menghapus produk dari cart.
+- Checkout pesanan.
+- Membayar pesanan melalui Xendit.
+- Melihat status pembayaran.
+- Melihat daftar pesanan sendiri.
+- Konfirmasi pesanan diterima.
+- Memberikan ulasan/review produk.
+- Menghapus ulasan sendiri.
+
+### Admin
+
+- Login sebagai admin.
+- Dashboard admin.
+- Manajemen produk.
+- Manajemen kategori.
+- Upload gambar produk.
+- Melihat ulasan produk.
+- Melihat semua order.
+- Membatalkan order jika masih memenuhi aturan.
+- Membuat data shipping/resi untuk order yang sudah dibayar.
+- Melihat data pengiriman.
+- Melihat laporan/summary penjualan.
+
+### Payment dan Shipping
+
+- Integrasi pembayaran menggunakan Xendit Invoice.
+- Callback Xendit untuk update status payment.
+- Update order menjadi `PAID` setelah pembayaran sukses.
+- Pengurangan stok produk setelah payment sukses.
+- Admin membuat shipping untuk order `PAID`.
+- Order berubah menjadi `SHIPPED` setelah admin membuat shipping/resi.
+- User melakukan konfirmasi pesanan diterima.
+- Order berubah menjadi `COMPLETED`.
+
+---
 
 ## Tech Stack
 
-* Java 21
-* Spring Boot
-* Spring Cloud Netflix Eureka
-* Spring Cloud Gateway
-* Spring Security
-* JWT Authentication
-* PostgreSQL
-* WebClient
-* Spring Mail
-* Apache POI Excel
-* Maven
-* Lombok
+### Frontend
 
-## Architecture
+- React
+- Vite
+- Tailwind CSS
+- React Router
+- Axios
+- lucide-react
+- Toast dan confirm custom provider
 
-Project ini menggunakan arsitektur microservices. Setiap service memiliki tanggung jawab masing-masing dan saling berkomunikasi menggunakan REST API melalui Eureka Service Discovery.
+### Backend
+
+- Java 21
+- Spring Boot
+- Spring Security
+- JWT Authentication
+- Google OAuth2 Login
+- Spring Cloud Netflix Eureka
+- Spring Cloud Gateway
+- Spring Data JPA
+- PostgreSQL
+- WebClient
+- Lombok
+- Maven
+- Spring Mail
+- Apache POI untuk export Excel/report
+
+### Integrasi Eksternal
+
+- Xendit Invoice Payment
+- Gmail SMTP untuk notification-service
+- Google OAuth2 untuk login Google
+
+### Deployment Preparation
+
+- Dockerfile di setiap backend service
+- `.dockerignore` di setiap backend service
+- `docker-compose.yml` untuk persiapan deploy berbasis container
+- `.env.example` untuk contoh environment variable
+
+---
+
+## Arsitektur Sistem
+
+Project ini menggunakan arsitektur **microservices**. Frontend berkomunikasi ke backend melalui API Gateway. Gateway meneruskan request ke service yang sesuai. Eureka digunakan sebagai service registry ketika semua service dijalankan secara lokal.
 
 ```text
-Client / Postman / Frontend
+Frontend React / Browser
         |
         v
-Gateway Service
+API Gateway Service
+        |
+        v
++-----------------------+
+|  Discovery Service    |
+|  Eureka Registry      |
++-----------------------+
         |
         v
 Microservices:
@@ -35,15 +140,20 @@ Microservices:
 - Cart Service
 - Order Service
 - Payment Service
-- Shipping Service
+- Shiping Service
 - Notification Service
 - Report Service
 ```
 
-## Project Structure
+Setiap service bertanggung jawab pada domain masing-masing dan memiliki database/konfigurasi sendiri.
+
+---
+
+## Struktur Folder
 
 ```text
 BaenTech-Store/
+│
 ├── backend/
 │   ├── discovery-service/
 │   ├── gateway-service/
@@ -53,36 +163,54 @@ BaenTech-Store/
 │   ├── cart-service/
 │   ├── order-service/
 │   ├── payment-service/
-│   ├── shipping-service/
+│   ├── shiping-serive/
 │   ├── notification-service/
 │   └── report-service/
 │
-├── database/
-├── docs/
 ├── frontend/
-├── README.md
-└── .gitignore
+│   └── baentech-frontend/
+│
+├── database/
+│   ├── ddl.sql
+│   ├── dml.sql
+│   └── docker-init/
+│       └── 01-create-databases.sql
+│
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+└── README.md
 ```
 
-## Services and Ports
+Catatan: folder shipping service pada project masih bernama `shiping-serive`. Nama tersebut mengikuti struktur project yang sudah ada agar tidak merusak konfigurasi.
 
-| Service              | Port | Description                                 |
-| -------------------- | ---: | ------------------------------------------- |
-| Discovery Service    | 8761 | Eureka Server untuk service registry        |
-| Gateway Service      | 8080 | API Gateway untuk routing semua service     |
-| Auth Service         | 8081 | Login, register, JWT, role user/admin       |
-| Product Service      | 8082 | CRUD produk, kategori, upload gambar, stock |
-| User Service         | 8083 | Profile user dan alamat pengiriman          |
-| Cart Service         | 8084 | Keranjang belanja user                      |
-| Order Service        | 8085 | Checkout dan manajemen order                |
-| Payment Service      | 8086 | Simulasi pembayaran                         |
-| Shipping Service     | 8087 | Pengiriman, resi, scheduler delivered       |
-| Notification Service | 8088 | Kirim email otomatis                        |
-| Report Service       | 8089 | Laporan dan export Excel                    |
+---
+
+## Daftar Service dan Port
+
+| Service | Port Lokal | Fungsi |
+|---|---:|---|
+| discovery-service | 8761 | Eureka service registry |
+| gateway-service | 8080 | API Gateway utama |
+| auth-service | 8081 | Register, login, JWT, Google OAuth2 |
+| product-service | 8082 | Produk, kategori, review, gambar, stok |
+| user-service | 8083 | Profile user dan alamat |
+| cart-service | 8084 | Keranjang belanja |
+| order-service | 8085 | Checkout dan order |
+| payment-service | 8086 | Payment Xendit dan callback |
+| shiping-serive | 8087 | Shipping/resi pengiriman |
+| notification-service | 8088 | Email notification |
+| report-service | 8089 | Laporan dan export Excel |
+
+Semua service sudah disiapkan agar bisa membaca port dari environment variable `PORT`, sehingga lebih fleksibel untuk deploy ke platform cloud.
+
+---
 
 ## Database
 
-Project ini menggunakan PostgreSQL. Setiap service utama memiliki database sendiri.
+Project ini menggunakan PostgreSQL. Karena berbasis microservices, database dipisah berdasarkan service.
+
+Database yang digunakan:
 
 ```sql
 CREATE DATABASE baentech_auth_db;
@@ -94,265 +222,222 @@ CREATE DATABASE baentech_payment_db;
 CREATE DATABASE baentech_shipping_db;
 ```
 
-Notification Service dan Report Service versi saat ini tidak wajib menggunakan database.
-
-## Main Features
-
-### Auth Service
-
-* Register user
-* Login user/admin
-* Generate JWT token
-* Role based access: `USER` dan `ADMIN`
-* Get current user
-* Auto admin seeder
-* Kirim email welcome setelah register melalui Notification Service
-
-### Product Service
-
-* CRUD kategori
-* CRUD produk
-* Search produk
-* Filter produk berdasarkan kategori dan brand
-* Upload gambar produk
-* Public access untuk melihat produk
-* Admin access untuk tambah, update, hapus produk
-* Reduce stock setelah pembayaran berhasil
-
-### User Service
-
-* Create/update profile
-* Get profile
-* CRUD alamat user
-* Set alamat utama
-* Delete alamat
-
-### Cart Service
-
-* Add product to cart
-* Get cart user
-* Update quantity item
-* Delete item cart
-* Clear cart
-* Mengambil detail produk dari Product Service
-
-### Order Service
-
-* Checkout dari cart
-* Get my orders
-* Get order detail
-* Admin get all orders
-* Update status order
-* Cancel order
-* Complete order setelah user confirm received
-* Kirim email order berhasil dibuat melalui Notification Service
-
-### Payment Service
-
-* Create payment dari order
-* Get payment user
-* Get payment by order
-* Admin get all payments
-* Payment success
-* Payment failed
-* Cancel payment
-* Update order menjadi `PAID` setelah payment success
-* Reduce stock produk setelah payment success
-* Kirim email payment success dan payment failed
-
-### Shipping Service
-
-* Create shipping untuk order yang sudah `PAID`
-* Admin input kurir, nomor resi, dan lama pengiriman
-* Status shipping:
-
-  * `PENDING`
-  * `SHIPPED`
-  * `DELIVERED`
-  * `RECEIVED`
-  * `CANCELLED`
-* Scheduler otomatis mengubah status `SHIPPED` menjadi `DELIVERED` jika estimasi sampai sudah lewat
-* User confirm received
-* Update order menjadi `COMPLETED`
-* Kirim email:
-
-  * Barang sedang dikirim
-  * Barang sudah sampai
-  * Pesanan selesai
-
-### Notification Service
-
-Notification Service digunakan sebagai service pusat untuk mengirim email dari service lain.
-
-Email yang sudah terintegrasi:
-
-* Welcome email setelah register
-* Order created email setelah checkout
-* Payment success email
-* Payment failed email
-* Shipping shipped email
-* Shipping delivered email
-* Order completed email
-
-Endpoint utama:
+File database yang disediakan:
 
 ```text
-POST /api/notifications/send-email
+database/ddl.sql  -> struktur tabel / DDL
+database/dml.sql  -> contoh data / DML
+database/docker-init/01-create-databases.sql -> init database untuk Docker PostgreSQL
 ```
 
-Example body:
+Karena database service terpisah, jalankan bagian DDL/DML sesuai database masing-masing.
 
-```json
-{
-  "to": "user@example.com",
-  "subject": "Test Email BaenTech Store",
-  "message": "Halo, ini adalah email dari BaenTech Store."
-}
-```
+---
 
-### Report Service
+## Alur Sistem
 
-Report Service digunakan untuk melihat laporan dari order, payment, dan shipping.
-
-Fitur:
-
-* Summary dashboard report
-* Order report
-* Payment report
-* Filter laporan berdasarkan tanggal
-* Export order report ke Excel
-* Export payment report ke Excel
-
-Endpoints:
-
-```text
-GET /api/reports/summary
-GET /api/reports/orders
-GET /api/reports/orders?startDate=2026-06-01&endDate=2026-06-30
-GET /api/reports/payments
-GET /api/reports/payments?startDate=2026-06-01&endDate=2026-06-30
-GET /api/reports/orders/export-excel
-GET /api/reports/payments/export-excel
-```
-
-## API Gateway Routes
-
-Gateway Service menjalankan routing ke semua microservices.
-
-```text
-/api/auth/**           -> AUTH-SERVICE
-/api/products/**       -> PRODUCT-SERVICE
-/api/categories/**     -> PRODUCT-SERVICE
-/api/users/**          -> USER-SERVICE
-/api/addresses/**      -> USER-SERVICE
-/api/carts/**          -> CART-SERVICE
-/api/orders/**         -> ORDER-SERVICE
-/api/payments/**       -> PAYMENT-SERVICE
-/api/shippings/**      -> SHIPPING-SERVICE
-/api/notifications/**  -> NOTIFICATION-SERVICE
-/api/reports/**        -> REPORT-SERVICE
-```
-
-## Main Flow
-
-### Register Flow
+### 1. Register dan Login
 
 ```text
 User register
 -> Auth Service menyimpan user
--> Auth Service memanggil Notification Service
--> User menerima welcome email
+-> Password dienkripsi
+-> Role default USER
+-> User login
+-> Auth Service membuat JWT token
+-> Frontend menyimpan token
+-> Token digunakan untuk akses endpoint yang protected
 ```
 
-### Checkout Flow
+### 2. Login Google OAuth2
 
 ```text
-User add product to cart
--> User checkout
--> Order Service mengambil data cart dari Cart Service
--> Order dibuat dengan status PENDING_PAYMENT
+User klik login Google
+-> Auth Service redirect ke Google OAuth2
+-> Google mengembalikan data user
+-> Auth Service membuat/mengecek user
+-> Auth Service membuat JWT
+-> User diarahkan kembali ke frontend
+```
+
+### 3. Produk dan Kategori
+
+```text
+Admin login
+-> Admin membuat kategori
+-> Admin membuat produk
+-> Admin upload gambar produk
+-> Produk aktif tampil di halaman user
+```
+
+Gambar produk disimpan pada kolom `image_url`. Untuk upload lokal, product-service menyimpan file pada folder uploads dan URL gambar disimpan ke database.
+
+### 4. Cart
+
+```text
+User login
+-> User melihat produk
+-> User menambahkan produk ke cart
+-> Cart Service menyimpan item cart
+-> User bisa update quantity / hapus item
+```
+
+### 5. Checkout
+
+```text
+User checkout dari cart
+-> Order Service membuat order
+-> Status order = PENDING_PAYMENT
 -> Cart dikosongkan
--> Email order created dikirim ke user
+-> Frontend membuat payment Xendit
+-> User diarahkan ke halaman pembayaran Xendit
 ```
 
-### Payment Flow
+### 6. Payment Xendit
 
 ```text
-User create payment
--> Admin/user melakukan simulasi payment success
--> Payment status menjadi SUCCESS
--> Order status menjadi PAID
--> Product stock berkurang
--> Email payment success dikirim ke user
+User membayar invoice Xendit
+-> Xendit mengirim callback ke Payment Service
+-> Payment Service validasi callback token
+-> Payment status = SUCCESS
+-> Payment Service memanggil Order Service internal
+-> Order status = PAID
+-> Order Service memanggil Product Service internal
+-> Stock produk berkurang
 ```
 
-### Shipping Flow
+Untuk menghindari stok berkurang dua kali, order-service hanya mengurangi stok ketika order berubah dari `PENDING_PAYMENT` menjadi `PAID`.
+
+### 7. Shipping
 
 ```text
-Admin create shipping dari order PAID
--> Status shipping PENDING
--> Admin ship order dan isi kurir, resi, delivery days
--> Status shipping SHIPPED
--> Email barang sedang dikirim
--> Scheduler cek estimatedDeliveryAt
--> Jika waktu sudah lewat, status menjadi DELIVERED
--> Email barang sudah sampai
--> User confirm received
--> Status shipping RECEIVED
--> Order status COMPLETED
--> Email pesanan selesai
+Admin melihat order PAID
+-> Admin membuat shipping/resi
+-> Shipping status = SHIPPED
+-> Order status = SHIPPED
+-> User melihat pesanan sedang dikirim
+-> User klik Pesanan Diterima
+-> Order status = COMPLETED
 ```
 
-### Report Flow
+### 8. Review Produk
 
 ```text
-Admin request report
--> Report Service mengambil data dari Order Service
--> Report Service mengambil data dari Payment Service
--> Report Service mengambil data dari Shipping Service
--> Report Service menghitung summary atau export Excel
+User melihat detail produk
+-> User memberi ulasan/rating
+-> Product Service menyimpan review
+-> Admin bisa melihat review produk dari halaman admin
 ```
 
-## Authentication and Authorization
-
-Project ini menggunakan JWT.
-
-Role:
+### 9. Report
 
 ```text
-USER
-ADMIN
+Admin membuka report
+-> Report Service mengambil data order/payment
+-> Report Service menghitung summary
+-> Admin bisa export laporan ke Excel
 ```
 
-Akses umum:
+---
 
-* `USER` dapat register, login, melihat produk, mengelola cart, checkout, payment, melihat order sendiri, dan confirm received.
-* `ADMIN` dapat mengelola produk, melihat semua order, update status order, mengelola shipping, melihat report, dan export Excel.
+## Role dan Hak Akses
 
-Header Authorization:
+### USER
+
+- Register dan login.
+- Melihat produk.
+- Melihat detail produk.
+- Mengelola cart sendiri.
+- Checkout.
+- Membayar order.
+- Melihat order sendiri.
+- Konfirmasi pesanan diterima.
+- Membuat dan menghapus review sendiri.
+
+### ADMIN
+
+- Login sebagai admin.
+- Mengelola produk dan kategori.
+- Upload gambar produk.
+- Melihat semua order.
+- Membatalkan order tertentu.
+- Membuat shipping/resi.
+- Melihat ulasan produk.
+- Mengakses dashboard admin dan laporan.
+
+Header JWT:
 
 ```text
 Authorization: Bearer <TOKEN>
 ```
 
-## Environment Configuration
+---
 
-Contoh konfigurasi email di Notification Service:
+## Konfigurasi Environment
 
-```properties
-spring.mail.host=smtp.gmail.com
-spring.mail.port=587
-spring.mail.username=${MAIL_USERNAME}
-spring.mail.password=${MAIL_PASSWORD}
-spring.mail.properties.mail.smtp.auth=true
-spring.mail.properties.mail.smtp.starttls.enable=true
+Project ini tidak menyimpan secret langsung di repository. Semua value sensitif dipindahkan ke `.env`.
+
+File `.env` asli tidak boleh dipush ke GitHub. Yang boleh dipush adalah `.env.example`.
+
+Contoh file environment:
+
+```text
+backend/auth-service/.env.example
+backend/product-service/.env.example
+backend/user-service/.env.example
+backend/cart-service/.env.example
+backend/order-service/.env.example
+backend/payment-service/.env.example
+backend/shiping-serive/.env.example
+backend/notification-service/.env.example
+backend/gateway-service/.env.example
+backend/discovery-service/.env.example
+.env.example
 ```
 
-Jangan menyimpan Gmail App Password langsung di repository public.
+Cara membuat `.env` dari `.env.example` di Windows:
 
-## How to Run
+```cmd
+copy backend\auth-service\.env.example backend\auth-service\.env
+copy backend\product-service\.env.example backend\product-service\.env
+copy backend\payment-service\.env.example backend\payment-service\.env
+```
 
-Jalankan service secara berurutan:
+Lalu isi value yang masih kosong, seperti database, Google OAuth2, Xendit, Gmail, dan internal API key.
+
+---
+
+## Cara Menjalankan Project Lokal
+
+### 1. Clone Repository
+
+```cmd
+git clone https://github.com/mrbaen454-xx/BaenTech-Store.git
+cd BaenTech-Store
+git checkout xendit-payment-update
+```
+
+### 2. Siapkan Database PostgreSQL
+
+Buat database:
+
+```sql
+CREATE DATABASE baentech_auth_db;
+CREATE DATABASE baentech_product_db;
+CREATE DATABASE baentech_user_db;
+CREATE DATABASE baentech_cart_db;
+CREATE DATABASE baentech_order_db;
+CREATE DATABASE baentech_payment_db;
+CREATE DATABASE baentech_shipping_db;
+```
+
+### 3. Buat File `.env`
+
+Copy dari `.env.example` pada masing-masing service, lalu isi value sesuai environment lokal.
+
+### 4. Jalankan Backend
+
+Jalankan service secara bertahap dari VS Code/terminal:
 
 ```text
 1. discovery-service
@@ -363,117 +448,306 @@ Jalankan service secara berurutan:
 6. cart-service
 7. order-service
 8. payment-service
-9. shipping-service
+9. shiping-serive
 10. notification-service
-11. report-service
+11. report-service jika diperlukan
 ```
 
-Atau minimal jalankan service yang dibutuhkan sesuai flow yang ingin dites.
-
-Setelah semua service berjalan, buka Eureka Dashboard:
+Eureka Dashboard:
 
 ```text
 http://localhost:8761
 ```
 
-Pastikan semua service sudah terdaftar.
-
-## Example Gateway Access
+Gateway utama:
 
 ```text
-http://localhost:8080/api/auth/login
-http://localhost:8080/api/products
-http://localhost:8080/api/carts
-http://localhost:8080/api/orders/checkout
-http://localhost:8080/api/payments/create
-http://localhost:8080/api/shippings/admin
-http://localhost:8080/api/reports/summary
+http://localhost:8080
 ```
 
-## Report Export
+### 5. Jalankan Frontend
 
-Export order report:
+```cmd
+cd frontend\baentech-frontend
+npm install
+npm run dev
+```
+
+Frontend berjalan di:
 
 ```text
+http://localhost:5173
+```
+
+Build frontend:
+
+```cmd
+npm run build
+```
+
+---
+
+## Endpoint Utama
+
+### Auth
+
+```text
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
+GET  /oauth2/authorization/google
+```
+
+### Product dan Category
+
+```text
+GET    /api/products
+GET    /api/products/{id}
+POST   /api/products
+PUT    /api/products/{id}
+DELETE /api/products/{id}
+POST   /api/products/{id}/image
+GET    /api/categories
+POST   /api/categories
+PUT    /api/categories/{id}
+DELETE /api/categories/{id}
+```
+
+### Review
+
+```text
+GET    /api/products/{id}/reviews
+POST   /api/products/{id}/reviews
+DELETE /api/products/reviews/{reviewId}
+```
+
+### Cart
+
+```text
+GET    /api/carts
+POST   /api/carts/items
+PUT    /api/carts/items/{id}
+DELETE /api/carts/items/{id}
+DELETE /api/carts/clear
+```
+
+### Order
+
+```text
+POST /api/orders/checkout
+GET  /api/orders/my-orders
+GET  /api/orders/{id}
+GET  /api/orders/admin/all
+PUT  /api/orders/{id}/cancel
+PUT  /api/orders/{id}/complete
+```
+
+### Payment
+
+```text
+POST /api/payments/create
+GET  /api/payments/my-payments
+GET  /api/payments/order/{orderId}
+POST /api/payments/xendit/callback
+```
+
+### Shipping
+
+```text
+POST /api/shippings/admin
+GET  /api/shippings/admin
+GET  /api/shippings/order/{orderId}
+```
+
+### Notification
+
+```text
+POST /api/notifications/send-email
+```
+
+### Report
+
+```text
+GET /api/reports/summary
+GET /api/reports/orders
+GET /api/reports/payments
 GET /api/reports/orders/export-excel
-```
-
-Export payment report:
-
-```text
 GET /api/reports/payments/export-excel
 ```
 
-Gunakan Postman dengan fitur:
+---
+
+## API Gateway Routes
 
 ```text
-Send and Download
+/api/auth/**           -> AUTH-SERVICE
+/oauth2/**             -> AUTH-SERVICE
+/login/oauth2/**       -> AUTH-SERVICE
+/api/products/**       -> PRODUCT-SERVICE
+/api/categories/**     -> PRODUCT-SERVICE
+/uploads/products/**   -> PRODUCT-SERVICE
+/api/users/**          -> USER-SERVICE
+/api/addresses/**      -> USER-SERVICE
+/api/carts/**          -> CART-SERVICE
+/api/orders/**         -> ORDER-SERVICE
+/api/payments/**       -> PAYMENT-SERVICE
+/api/shippings/**      -> SHIPING-SERIVE
+/api/notifications/**  -> NOTIFICATION-SERVICE
+/api/reports/**        -> REPORT-SERVICE
 ```
 
-## Git Notes
+---
 
-Sebelum push ke GitHub, pastikan file sensitif tidak ikut ter-push:
+## Catatan Docker dan Deploy
+
+Project sudah disiapkan untuk deploy menggunakan Docker.
+
+File yang tersedia:
 
 ```text
-application.properties yang berisi password asli
-Gmail App Password
-JWT secret production
-file upload lokal
-target/
-.env
+backend/*/Dockerfile
+backend/*/.dockerignore
+docker-compose.yml
+database/docker-init/01-create-databases.sql
+.env.example
 ```
 
-Contoh `.gitignore`:
+Build salah satu service:
 
-```gitignore
-target/
-*.log
-.env
-.env.*
-uploads/
-.idea/
-.vscode/
-.DS_Store
-
-# Maven wrapper jar cache
-.mvn/wrapper/maven-wrapper.jar
-
-# Sensitive config backup
-application-local.properties
-application-secret.properties
+```cmd
+cd backend\product-service
+docker build -t baentech-product-service .
 ```
 
-## Project Status
+Menjalankan semua service dengan Docker Compose:
 
-Backend microservices yang sudah dibuat:
+```cmd
+docker compose up -d
+```
 
-* Discovery Service
-* Gateway Service
-* Auth Service
-* Product Service
-* User Service
-* Cart Service
-* Order Service
-* Payment Service
-* Shipping Service
-* Notification Service
-* Report Service
+Catatan:
 
-Status fitur utama:
+- Docker Compose lebih cocok untuk VPS/server.
+- Platform seperti Render biasanya menjalankan satu Dockerfile per service, bukan menjalankan `docker-compose.yml`.
+- Upload gambar lokal perlu volume agar tidak hilang jika menggunakan Docker.
+- Untuk production, gambar lebih baik dipindahkan ke object storage seperti Cloudinary atau S3 compatible storage.
 
-* Register dan login JWT
-* Email welcome register
-* CRUD product dan category
-* Upload image product
-* Cart
-* Checkout order
-* Payment success/failed
-* Stock reduction
-* Shipping scheduler
-* Email notification
-* Report summary
-* Export Excel
+---
+
+## File Pengumpulan Project
+
+Untuk pengumpulan project, file penting yang sudah disiapkan:
+
+```text
+Source Code Frontend:
+frontend/baentech-frontend
+
+Source Code Backend:
+backend/
+
+Struktur Database / DDL:
+database/ddl.sql
+
+Contoh Data / DML:
+database/dml.sql
+
+Persiapan Docker:
+Dockerfile, .dockerignore, docker-compose.yml
+
+Dokumentasi:
+README.md
+```
+
+Flowchart bisa disimpan pada folder:
+
+```text
+docs/
+```
+
+Repository:
+
+```text
+https://github.com/mrbaen454-xx/BaenTech-Store
+```
+
+Branch utama project saat ini:
+
+```text
+xendit-payment-update
+```
+
+---
+
+## Catatan Keamanan
+
+Jangan pernah push file berikut ke GitHub:
+
+```text
+.env
+.env.local
+password database asli
+Google OAuth secret asli
+Xendit key asli
+Gmail app password asli
+uploads lokal jika berisi file private
+node_modules
+target
+dist
+```
+
+Sebelum commit, cek file staged:
+
+```cmd
+git diff --cached --name-only
+```
+
+Jika secret pernah terlanjur terlihat atau masuk repository, segera rotate/ganti secret dari dashboard penyedia layanan terkait.
+
+---
+
+## Status Project
+
+Fitur yang sudah tersedia:
+
+- Frontend React/Vite.
+- Backend Spring Boot microservices.
+- JWT authentication.
+- Google OAuth2 login.
+- Admin dan user role.
+- Product CRUD.
+- Category CRUD.
+- Product image upload.
+- Product review.
+- Cart.
+- Checkout.
+- Xendit payment.
+- Payment callback.
+- Stock reduction.
+- Shipping/resi.
+- User confirm received.
+- Admin product reviews page.
+- Report/Excel export.
+- Environment variable setup.
+- Dockerfile dan docker-compose preparation.
+
+Project ini masih dapat dikembangkan lagi, misalnya:
+
+- Penyimpanan gambar ke Cloudinary/object storage.
+- Chat user-admin.
+- Realtime notification.
+- Deployment production penuh.
+- Testing otomatis.
+- Monitoring/logging production.
+
+---
 
 ## Author
 
-Developed by M Saroni for BaenTech Store backend microservices project.
+Project dibuat oleh:
+
+```text
+M. Saroni
+BaenTech Store
+```
+
+Untuk kebutuhan pembelajaran, portofolio, dan presentasi project e-commerce berbasis microservices.
