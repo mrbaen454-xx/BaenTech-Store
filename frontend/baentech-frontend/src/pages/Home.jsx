@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import logo from "../assets/baentech-logo.png";
 import {
   ArrowRight,
   BadgeCheck,
@@ -57,6 +56,9 @@ const benefits = [
     icon: Headphones,
   },
 ];
+
+const heroImageUrl =
+  "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=1000&q=80";
 
 function Home() {
   const [products, setProducts] = useState([]);
@@ -147,59 +149,21 @@ function Home() {
           </div>
 
           <div className="relative">
-            <div className="absolute inset-4 rounded-[2rem] bg-blue-500/20 blur-2xl dark:bg-blue-500/10" />
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/75 p-4 shadow-2xl shadow-slate-400/30 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 dark:shadow-black/30 sm:p-6">
-              <div className="rounded-[1.5rem] border border-slate-100 bg-gradient-to-br from-white to-slate-100 p-6 dark:border-slate-800 dark:from-slate-950 dark:to-slate-900 sm:p-8">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 p-2 shadow-lg shadow-blue-600/25">
-                      <img
-                        src={logo}
-                        alt="BaenTech Store"
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                        BaenTech Store
-                      </p>
-                      <h2 className="text-xl font-black text-slate-950 dark:text-white sm:text-2xl">
-                        Smart Tech Hub
-                      </h2>
-                    </div>
-                  </div>
-                  <div className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    Online
-                  </div>
-                </div>
+            <div className="absolute -right-6 top-8 h-60 w-60 rounded-full bg-blue-400/25 blur-3xl dark:bg-blue-500/10 sm:h-80 sm:w-80" />
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/60 p-3 shadow-2xl shadow-slate-400/30 backdrop-blur dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-black/30 sm:p-5">
+              <img
+                src={heroImageUrl}
+                alt="BaenTech Hero"
+                className="h-64 w-full rounded-[1.5rem] object-cover shadow-xl transition-all duration-500 hover:scale-[1.02] sm:h-[420px]"
+              />
 
-                <div className="mt-7 grid gap-3">
-                  {categories.slice(0, 4).map((category) => {
-                    const Icon = category.icon;
-
-                    return (
-                      <div
-                        key={category.name}
-                        className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
-                            <Icon size={20} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-black text-slate-950 dark:text-white">
-                              {category.name}
-                            </p>
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                              Siap dicari di katalog
-                            </p>
-                          </div>
-                        </div>
-                        <ArrowRight className="h-4 w-4 text-slate-400" />
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="absolute bottom-6 left-6 right-6 rounded-2xl border border-white/70 bg-white/85 p-4 shadow-lg backdrop-blur dark:border-slate-800 dark:bg-slate-950/75 sm:left-8 sm:right-8">
+                <p className="text-xs font-black uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                  BaenTech Store
+                </p>
+                <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white sm:text-xl">
+                  Perangkat teknologi pilihan untuk kebutuhan harian.
+                </h2>
               </div>
             </div>
           </div>
