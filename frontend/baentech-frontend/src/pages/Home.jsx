@@ -4,14 +4,19 @@ import {
   ArrowRight,
   BadgeCheck,
   Cable,
+  CreditCard,
   Headphones,
   Keyboard,
   Laptop,
   Monitor,
   Mouse,
+  PackageCheck,
+  RotateCcw,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
   Truck,
+  X,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -60,10 +65,58 @@ const benefits = [
 const heroImageUrl =
   "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=1000&q=80";
 
+const footerInfoItems = [
+  {
+    title: "Cara Belanja",
+    icon: ShoppingBag,
+    description:
+      "Pilih produk teknologi yang kamu butuhkan, masukkan ke keranjang, lalu lanjutkan checkout dengan data pengiriman yang benar.",
+    points: [
+      "Cari produk melalui halaman Produk atau kategori.",
+      "Klik Detail untuk melihat informasi lengkap produk.",
+      "Masukkan produk ke keranjang dan lanjutkan checkout.",
+    ],
+  },
+  {
+    title: "Pembayaran",
+    icon: CreditCard,
+    description:
+      "Pembayaran dilakukan melalui invoice Xendit sehingga proses transaksi lebih aman dan status pembayaran dapat diperbarui otomatis.",
+    points: [
+      "Klik Bayar Sekarang setelah checkout.",
+      "Selesaikan pembayaran di halaman Xendit.",
+      "Status pesanan akan berubah setelah pembayaran berhasil.",
+    ],
+  },
+  {
+    title: "Pengiriman",
+    icon: PackageCheck,
+    description:
+      "Setelah pembayaran berhasil, admin akan memproses pengiriman dan menambahkan nomor resi pada pesanan kamu.",
+    points: [
+      "Pesanan diproses setelah status menjadi PAID.",
+      "Admin membuat data pengiriman dan nomor resi.",
+      "User dapat menandai pesanan diterima setelah barang sampai.",
+    ],
+  },
+  {
+    title: "Garansi & Retur",
+    icon: RotateCcw,
+    description:
+      "Produk tertentu memiliki garansi sesuai ketentuan. Retur dapat diajukan jika produk bermasalah dan sesuai syarat toko.",
+    points: [
+      "Simpan bukti pembayaran dan detail pesanan.",
+      "Retur berlaku untuk kerusakan atau kesalahan produk.",
+      "Hubungi admin untuk pemeriksaan garansi atau retur.",
+    ],
+  },
+];
+
 function Home() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeInfo, setActiveInfo] = useState(null);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -85,6 +138,19 @@ function Home() {
 
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (!activeInfo) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        setActiveInfo(null);
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [activeInfo]);
 
   return (
     <div className="min-h-screen bg-gray-200 text-slate-950 dark:bg-slate-950">
@@ -316,10 +382,21 @@ function Home() {
           <div>
             <h3 className="text-sm font-black sm:text-base">Informasi</h3>
             <div className="mt-3 space-y-2 text-[11px] font-semibold text-slate-300 sm:mt-4 sm:space-y-3 sm:text-sm">
-              <p>Cara Belanja</p>
-              <p>Pembayaran</p>
-              <p>Pengiriman</p>
-              <p>Garansi & Retur</p>
+              {footerInfoItems.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.title}
+                    type="button"
+                    onClick={() => setActiveInfo(item)}
+                    className="group flex w-fit items-center gap-2 text-left transition-all duration-200 hover:translate-x-1 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+                  >
+                    <Icon className="h-3.5 w-3.5 text-blue-300 transition-all duration-200 group-hover:text-blue-200" />
+                    <span>{item.title}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -337,6 +414,70 @@ function Home() {
           © 2026 BaenTech Store. All rights reserved.
         </div>
       </footer>
+
+      {activeInfo && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm sm:px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="footer-info-title"
+          onClick={() => setActiveInfo(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-[1.5rem] border border-white/70 bg-white p-4 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white sm:rounded-[2rem] sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
+                  <activeInfo.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                    Informasi
+                  </p>
+                  <h3
+                    id="footer-info-title"
+                    className="text-lg font-black text-slate-950 dark:text-white sm:text-xl"
+                  >
+                    {activeInfo.title}
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveInfo(null)}
+                className="rounded-full border border-slate-200 bg-slate-50 p-2 text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                aria-label="Tutup informasi"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="mt-4 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+              {activeInfo.description}
+            </p>
+
+            <ul className="mt-4 space-y-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              {activeInfo.points.map((point) => (
+                <li key={point} className="flex gap-2">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              type="button"
+              onClick={() => setActiveInfo(null)}
+              className="mt-5 w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:bg-blue-700 active:scale-[0.99]"
+            >
+              Mengerti
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
