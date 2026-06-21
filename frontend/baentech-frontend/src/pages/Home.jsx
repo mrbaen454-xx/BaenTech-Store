@@ -156,15 +156,6 @@ function Home() {
                 alt="BaenTech Hero"
                 className="h-64 w-full rounded-[1.5rem] object-cover shadow-xl transition-all duration-500 hover:scale-[1.02] sm:h-[420px]"
               />
-
-              <div className="absolute bottom-6 left-6 right-6 rounded-2xl border border-white/70 bg-white/85 p-4 shadow-lg backdrop-blur dark:border-slate-800 dark:bg-slate-950/75 sm:left-8 sm:right-8">
-                <p className="text-xs font-black uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                  BaenTech Store
-                </p>
-                <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white sm:text-xl">
-                  Perangkat teknologi pilihan untuk kebutuhan harian.
-                </h2>
-              </div>
             </div>
           </div>
         </div>
