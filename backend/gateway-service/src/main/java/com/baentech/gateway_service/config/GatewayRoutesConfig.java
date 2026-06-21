@@ -23,7 +23,9 @@ public class GatewayRoutesConfig {
 
                                 // USER SERVICE
                                 .route("user-service", r -> r
-                                                .path("/api/users/**")
+                                                .path(
+                                                                "/api/users/**",
+                                                                "/api/addresses/**")
                                                 .uri("lb://USER-SERVICE"))
 
                                 // PRODUCT SERVICE
