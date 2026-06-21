@@ -7,8 +7,24 @@
     border-color 0.2s ease;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
-  background-color: #f8fafc;
+  background-color: #e5e7eb;
+}
+
+html:not(.dark) #root {
+  background-color: #e5e7eb;
+}
+
+html:not(.dark) .min-h-screen.bg-white,
+html:not(.dark) .min-h-screen.bg-slate-50,
+html:not(.dark) .min-h-screen.bg-gray-50 {
+  background-color: #e5e7eb;
 }
 
 .dark body {
