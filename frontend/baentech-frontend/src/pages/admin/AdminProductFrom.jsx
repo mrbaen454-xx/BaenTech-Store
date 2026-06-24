@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 
-import logo from "../../assets/baentech-logo.png";
+import BrandLogo from "../../components/BrandLogo";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
@@ -307,12 +307,8 @@ function AdminProductFrom() {
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between px-5 py-6">
-          <div className="inline-flex cursor-default select-none">
-            <img
-              src={logo}
-              alt="BaenTech Store"
-              className="h-16 w-auto object-contain"
-            />
+          <div className="inline-flex select-none">
+            <BrandLogo to="/admin/dashboard" />
           </div>
 
           <button

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  ExternalLink,
   Eye,
   Filter,
   LayoutDashboard,
@@ -25,7 +26,9 @@ import {
   XCircle,
 } from "lucide-react";
 
-import logo from "../../assets/baentech-logo.png";
+import BrandLogo from "../../components/BrandLogo";
+import { useConfirm } from "../../components/ui/ConfirmProvider";
+import { useToast } from "../../components/ui/ToastProvider";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -67,6 +70,8 @@ function AdminPayments() {
 
   const { user, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { openConfirm } = useConfirm();
+  const { showToast } = useToast();
 
   const savedAdminProfile = getSavedAdminProfile();
 
@@ -192,7 +197,7 @@ function AdminPayments() {
   const normalizePayment = (payment) => {
     return {
       ...payment,
-      _id: payment?.id,
+      _id: payment?.id || payment?.paymentId,
       _orderId: payment?.orderId || "-",
       _orderNumber: payment?.orderNumber || "-",
       _email: payment?.email || "-",
@@ -200,6 +205,21 @@ function AdminPayments() {
       _amount: Number(payment?.amount || 0),
       _paymentMethod: payment?.paymentMethod || "-",
       _status: payment?.status || "PENDING",
+
+      // XENDIT FIELDS
+      _gateway: payment?.gateway || "-",
+      _gatewayOrderId: payment?.gatewayOrderId || "-",
+      _gatewayInvoiceId: payment?.gatewayInvoiceId || "-",
+      _redirectUrl:
+        payment?.redirectUrl ||
+        payment?.invoiceUrl ||
+        payment?.invoice_url ||
+        "",
+      _transactionStatus: payment?.transactionStatus || "-",
+      _paymentType: payment?.paymentType || "-",
+      _paymentChannel: payment?.paymentChannel || "-",
+      _paymentDestination: payment?.paymentDestination || "-",
+
       _paidAt: payment?.paidAt || null,
       _createdAt: payment?.createdAt || null,
       _updatedAt: payment?.updatedAt || null,
@@ -212,9 +232,8 @@ function AdminPayments() {
 
   const filteredPayments = useMemo(() => {
     return normalizedPayments.filter((payment) => {
-      const text =
-        `${payment._paymentNumber} ${payment._orderNumber} ${payment._orderId} ${payment._email} ${payment._paymentMethod}`.toLowerCase();
-
+const text =
+  `${payment._paymentNumber} ${payment._orderNumber} ${payment._orderId} ${payment._email} ${payment._paymentMethod} ${payment._gateway} ${payment._gatewayInvoiceId} ${payment._gatewayOrderId}`.toLowerCase();
       const matchKeyword = text.includes(keyword.toLowerCase());
 
       const matchStatus =
@@ -303,66 +322,95 @@ function AdminPayments() {
   const handleMarkSuccess = async (payment) => {
     if (!payment?._id) return;
 
-    try {
-      setActionLoading(true);
-      setError("");
-      setSuccess("");
+    openConfirm({
+      title: "Mark Payment Success?",
+      message: `Payment ${payment.paymentNumber || payment._id} akan ditandai SUCCESS secara manual.`,
+      confirmText: "Mark Success",
+      cancelText: "Batal",
+      variant: "success",
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          setError("");
+          setSuccess("");
 
-      const updated = await markPaymentSuccessApi(payment._id);
+          const updated = await markPaymentSuccessApi(payment._id);
 
-      updatePaymentInState(payment._id, updated, "SUCCESS");
+          updatePaymentInState(payment._id, updated, "SUCCESS");
 
-      setSelectedPayment((prev) =>
-        normalizePayment({
-          ...prev,
-          ...updated,
-          status: updated?.status || "SUCCESS",
-        }),
-      );
+          setSelectedPayment((prev) =>
+            normalizePayment({
+              ...prev,
+              ...updated,
+              status: updated?.status || "SUCCESS",
+            }),
+          );
 
-      setSuccess("Payment berhasil ditandai SUCCESS.");
-    } catch (err) {
-      console.log(err);
+          setSuccess("Payment berhasil ditandai SUCCESS.");
+          showToast({
+            type: "success",
+            message: "Payment berhasil ditandai SUCCESS.",
+          });
+        } catch (err) {
+          console.log(err);
 
-      setError(
-        err.response?.data?.message ||
-          "Gagal mengubah payment menjadi SUCCESS.",
-      );
-    } finally {
-      setActionLoading(false);
-    }
+          const message =
+            err.response?.data?.message ||
+            "Gagal mengubah payment menjadi SUCCESS.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handleMarkFailed = async (payment) => {
     if (!payment?._id) return;
 
-    try {
-      setActionLoading(true);
-      setError("");
-      setSuccess("");
+    openConfirm({
+      title: "Mark Payment Failed?",
+      message: `Payment ${payment.paymentNumber || payment._id} akan ditandai FAILED secara manual.`,
+      confirmText: "Mark Failed",
+      cancelText: "Batal",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          setError("");
+          setSuccess("");
 
-      const updated = await markPaymentFailedApi(payment._id);
+          const updated = await markPaymentFailedApi(payment._id);
 
-      updatePaymentInState(payment._id, updated, "FAILED");
+          updatePaymentInState(payment._id, updated, "FAILED");
 
-      setSelectedPayment((prev) =>
-        normalizePayment({
-          ...prev,
-          ...updated,
-          status: updated?.status || "FAILED",
-        }),
-      );
+          setSelectedPayment((prev) =>
+            normalizePayment({
+              ...prev,
+              ...updated,
+              status: updated?.status || "FAILED",
+            }),
+          );
 
-      setSuccess("Payment berhasil ditandai FAILED.");
-    } catch (err) {
-      console.log(err);
+          setSuccess("Payment berhasil ditandai FAILED.");
+          showToast({
+            type: "success",
+            message: "Payment berhasil ditandai FAILED.",
+          });
+        } catch (err) {
+          console.log(err);
 
-      setError(
-        err.response?.data?.message || "Gagal mengubah payment menjadi FAILED.",
-      );
-    } finally {
-      setActionLoading(false);
-    }
+          const message =
+            err.response?.data?.message ||
+            "Gagal mengubah payment menjadi FAILED.";
+          setError(message);
+          showToast({ type: "error", message });
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const resetFilters = () => {
@@ -383,12 +431,8 @@ function AdminPayments() {
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between px-5 py-6">
-          <div className="inline-flex cursor-default select-none">
-            <img
-              src={logo}
-              alt="BaenTech Store"
-              className="h-16 w-auto object-contain"
-            />
+          <div className="inline-flex select-none">
+            <BrandLogo to="/admin/dashboard" />
           </div>
 
           <button
@@ -662,7 +706,7 @@ function AdminPayments() {
 
           <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1040px] text-left">
+              <table className="w-full min-w-[1160px] text-left">
                 <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
                   <tr>
                     <th className="px-5 py-4">Payment Number</th>
@@ -670,6 +714,7 @@ function AdminPayments() {
                     <th className="px-5 py-4">Email</th>
                     <th className="px-5 py-4">Amount</th>
                     <th className="px-5 py-4">Method</th>
+                    <th className="px-5 py-4">Gateway</th>
                     <th className="px-5 py-4">Status</th>
                     <th className="px-5 py-4">Paid At</th>
                     <th className="px-5 py-4">Created At</th>
@@ -681,7 +726,7 @@ function AdminPayments() {
                   {loading && (
                     <tr>
                       <td
-                        colSpan="9"
+                        colSpan="10"
                         className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
                       >
                         Memuat data payments...
@@ -692,7 +737,7 @@ function AdminPayments() {
                   {!loading && paginatedPayments.length === 0 && (
                     <tr>
                       <td
-                        colSpan="9"
+                        colSpan="10"
                         className="px-5 py-10 text-center text-sm font-bold text-slate-500 dark:text-slate-400"
                       >
                         Payment tidak ditemukan.
@@ -752,6 +797,20 @@ function AdminPayments() {
                             <CreditCard size={14} />
                             {payment._paymentMethod}
                           </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                            <Wallet size={14} />
+                            {payment._gateway}
+                          </div>
+
+                          {payment._gateway === "XENDIT" && (
+                            <p className="mt-1 max-w-[160px] truncate text-xs font-bold text-slate-500 dark:text-slate-400">
+                              {payment._paymentChannel ||
+                                payment._paymentType ||
+                                "-"}
+                            </p>
+                          )}
                         </td>
 
                         <td className="px-5 py-4">
@@ -904,7 +963,9 @@ function PaymentDetailModal({
   onMarkFailed,
 }) {
   const status = String(payment._status || "PENDING").toUpperCase();
-  const canAdminAction = status === "PENDING";
+  const gateway = String(payment._gateway || "").toUpperCase();
+  const isXenditPayment = gateway === "XENDIT";
+  const canAdminAction = status === "PENDING" && !isXenditPayment;
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
@@ -943,6 +1004,25 @@ function PaymentDetailModal({
           <DetailItem label="Email" value={payment._email} />
           <DetailItem label="Amount" value={formatCurrency(payment._amount)} />
           <DetailItem label="Method" value={payment._paymentMethod} />
+          <DetailItem label="Gateway" value={payment._gateway} />
+          <DetailItem
+            label="Transaction Status"
+            value={payment._transactionStatus}
+          />
+          <DetailItem label="Payment Channel" value={payment._paymentChannel} />
+          <DetailItem label="Payment Type" value={payment._paymentType} />
+          <DetailItem
+            label="Payment Destination"
+            value={payment._paymentDestination}
+          />
+          <DetailItem
+            label="Gateway Order ID"
+            value={payment._gatewayOrderId}
+          />
+          <DetailItem
+            label="Gateway Invoice ID"
+            value={payment._gatewayInvoiceId}
+          />
           <DetailItem label="Paid At" value={formatDate(payment._paidAt)} />
           <DetailItem
             label="Created At"
@@ -952,6 +1032,28 @@ function PaymentDetailModal({
             label="Updated At"
             value={formatDate(payment._updatedAt)}
           />
+
+          {payment._redirectUrl && (
+            <div className="mt-6 rounded-3xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
+              <p className="text-sm font-black text-blue-700 dark:text-blue-300">
+                Invoice Xendit
+              </p>
+
+              <p className="mt-1 break-all text-xs font-semibold text-blue-700/80 dark:text-blue-300/80">
+                {payment._redirectUrl}
+              </p>
+
+              <a
+                href={payment._redirectUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-700"
+              >
+                <ExternalLink size={18} />
+                Buka Invoice
+              </a>
+            </div>
+          )}
 
           <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950/60 md:col-span-2">
             <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">
@@ -969,11 +1071,17 @@ function PaymentDetailModal({
             Admin Action
           </p>
 
-          {canAdminAction ? (
+          {isXenditPayment ? (
+            <div className="mt-3 rounded-2xl bg-blue-100 p-4 text-sm font-bold leading-6 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+              Payment ini menggunakan Xendit. Status SUCCESS, FAILED, atau
+              EXPIRED tidak diubah manual oleh admin, tetapi menunggu callback
+              dari Xendit. Admin hanya memantau status pembayaran.
+            </div>
+          ) : canAdminAction ? (
             <>
               <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Payment masih PENDING. Admin bisa menandai pembayaran menjadi
-                SUCCESS atau FAILED.
+                Payment manual masih PENDING. Admin bisa menandai pembayaran
+                menjadi SUCCESS atau FAILED.
               </p>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">

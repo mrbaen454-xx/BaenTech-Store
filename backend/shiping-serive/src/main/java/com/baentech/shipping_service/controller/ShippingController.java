@@ -1,5 +1,6 @@
 package com.baentech.shipping_service.controller;
 
+import com.baentech.shipping_service.entity.ShippingStatus;
 import com.baentech.shipping_service.payload.req.CreateShippingRequest;
 import com.baentech.shipping_service.payload.req.ShipOrderRequest;
 import com.baentech.shipping_service.payload.res.MessageResponse;
@@ -181,12 +182,107 @@ public class ShippingController {
 
     @PutMapping("/{id}/ship")
     public ResponseEntity<?> shipOrder(
+            HttpServletRequest httpServletRequest,
             @PathVariable Long id,
             @Valid @RequestBody ShipOrderRequest request) {
         try {
-            ShippingResponse response = shippingService.shipOrder(id, request);
+            String token = httpServletRequest.getHeader("Authorization");
+
+            ShippingResponse response = shippingService.shipOrder(token, id, request);
 
             return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Terjadi kesalahan pada server");
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    @PutMapping("/{id}/shipped")
+    public ResponseEntity<?> markShippingShipped(
+            HttpServletRequest httpServletRequest,
+            @PathVariable Long id) {
+        try {
+            String token = httpServletRequest.getHeader("Authorization");
+
+            ShippingResponse response = shippingService.markShippingShipped(token, id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Terjadi kesalahan pada server");
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    @PutMapping("/{id}/delivered")
+    public ResponseEntity<?> markShippingDelivered(@PathVariable Long id) {
+        try {
+            ShippingResponse response = shippingService.markShippingDelivered(id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Terjadi kesalahan pada server");
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<?> updateShippingStatus(
+            HttpServletRequest httpServletRequest,
+            @PathVariable Long id,
+            @RequestBody Map<String, String> request) {
+        try {
+            String statusValue = request.get("status");
+
+            if (statusValue == null || statusValue.isBlank()) {
+                throw new RuntimeException("Status shipping tidak boleh kosong");
+            }
+
+            String token = httpServletRequest.getHeader("Authorization");
+            ShippingStatus status = ShippingStatus.valueOf(statusValue.trim().toUpperCase());
+
+            ShippingResponse response = shippingService.updateShippingStatus(token, id, status);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Status shipping tidak valid");
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
 
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();

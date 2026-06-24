@@ -39,6 +39,9 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.POST, "/api/shippings/create").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.GET, "/api/shippings/admin").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/shippings/{id}/ship").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/shippings/{id}/shipped").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/shippings/{id}/delivered").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/shippings/{id}/status").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/shippings/{id}/cancel").hasRole("ADMIN")
 
                             // USER dan ADMIN

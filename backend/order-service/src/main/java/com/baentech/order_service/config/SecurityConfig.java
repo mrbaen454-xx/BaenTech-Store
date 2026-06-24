@@ -34,6 +34,7 @@ public class SecurityConfig {
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/actuator/**").permitAll()
+                            .requestMatchers(HttpMethod.PUT, "/api/orders/internal/**").permitAll()
 
                             // ADMIN - taruh di atas /api/orders/{id}
                             .requestMatchers(HttpMethod.GET, "/api/orders/admin").hasRole("ADMIN")

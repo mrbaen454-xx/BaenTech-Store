@@ -8,12 +8,20 @@ import ProductDetail from "../pages/ProductDetail";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminProducts from "../pages/admin/AdminProducts";
 import AdminProductForm from "../pages/admin/AdminProductFrom";
+import AdminProductReviews from "../pages/admin/AdminProductReviews";
+import AdminProductReviewsIndex from "../pages/admin/AdminProductReviewsIndex";
 import AdminProfile from "../pages/admin/AdminProfile";
 import AdminCategories from "../pages/admin/AdminCategories";
 import AdminOrders from "../pages/admin/AdminOrders";
 import AdminPayments from "../pages/admin/AdminPayments";
 import AdminShipping from "../pages/admin/AdminShipping";
 import AdminReports from "../pages/admin/AdminReports";
+import UserProfile from "../pages/UserProfile";
+import Cart from "../pages/Cart";
+import CheckoutV3 from "../pages/CheckoutV3";
+import PaymentResult from "../pages/PaymentResult";
+import MyOrders from "../pages/MyOrders";
+import OAuthSuccess from "../pages/OAuthSuccess";
 
 import ProtectedRoute, {
   GuestRoute,
@@ -66,6 +74,16 @@ function AppRoutes() {
           </GuestRoute>
         }
       />
+      <Route path="/oauth2/success" element={<OAuthSuccess />} />
+
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <UserProfile />
+          </ProtectedRoute>
+        }
+      />
 
       {/* ADMIN */}
       <Route
@@ -93,6 +111,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/product-reviews"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
+            <AdminProductReviewsIndex />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/products/create"
         element={
           <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
@@ -113,6 +139,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
             <AdminProductForm />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/products/:id/reviews"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
+            <AdminProductReviews />
           </ProtectedRoute>
         }
       />
@@ -153,6 +187,56 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN"]}>
             <AdminReports />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cart"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <Cart />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-orders"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <MyOrders />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/checkout"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <CheckoutV3 />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payment/finish"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <PaymentResult />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payment/pending"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <PaymentResult />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payment/error"
+        element={
+          <ProtectedRoute allowedRoles={["USER", "ROLE_USER"]}>
+            <PaymentResult />
           </ProtectedRoute>
         }
       />

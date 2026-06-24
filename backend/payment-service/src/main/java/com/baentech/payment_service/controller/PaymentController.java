@@ -1,6 +1,7 @@
 package com.baentech.payment_service.controller;
 
 import com.baentech.payment_service.payload.req.CreatePaymentRequest;
+import com.baentech.payment_service.payload.req.XenditInvoiceCallbackRequest;
 import com.baentech.payment_service.payload.res.MessageResponse;
 import com.baentech.payment_service.payload.res.PaymentResponse;
 import com.baentech.payment_service.service.PaymentService;
@@ -284,4 +285,66 @@ public class PaymentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+
+    @PostMapping("/xendit/create")
+public ResponseEntity<?> createXenditPayment(
+        Principal principal,
+        HttpServletRequest httpServletRequest,
+        @Valid @RequestBody CreatePaymentRequest request) {
+    try {
+        if (principal == null) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Anda belum login");
+
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        String email = principal.getName();
+        String token = httpServletRequest.getHeader("Authorization");
+
+        PaymentResponse response = paymentService.createXenditPayment(email, token, request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+    } catch (RuntimeException e) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("message", e.getMessage());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+    } catch (Exception e) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("message", "Terjadi kesalahan pada server");
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+}
+
+@PostMapping("/xendit/callback")
+public ResponseEntity<?> xenditCallback(
+        @RequestHeader(value = "x-callback-token", required = false) String callbackToken,
+        @RequestBody XenditInvoiceCallbackRequest request) {
+    try {
+        PaymentResponse response = paymentService.handleXenditCallback(callbackToken, request);
+
+        return ResponseEntity.ok(response);
+
+    } catch (RuntimeException e) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("message", e.getMessage());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+
+    } catch (Exception e) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("message", "Terjadi kesalahan pada server");
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+}
 }

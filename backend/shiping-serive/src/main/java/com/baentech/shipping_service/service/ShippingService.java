@@ -2,6 +2,7 @@ package com.baentech.shipping_service.service;
 
 import java.util.List;
 
+import com.baentech.shipping_service.entity.ShippingStatus;
 import com.baentech.shipping_service.payload.req.CreateShippingRequest;
 import com.baentech.shipping_service.payload.req.ShipOrderRequest;
 import com.baentech.shipping_service.payload.res.MessageResponse;
@@ -12,15 +13,21 @@ public interface ShippingService {
 
     List<ShippingResponse> getMyShippings(String email);
 
-    ShippingResponse getShippingById(String email,Long id);
+    ShippingResponse getShippingById(String email, Long id);
 
-    ShippingResponse getShippingByOrderId(String email,Long orderId);
+    ShippingResponse getShippingByOrderId(String email, Long orderId);
 
     List<ShippingResponse> getAllShippings();
 
-    ShippingResponse shipOrder(Long id,ShipOrderRequest request);
+    ShippingResponse shipOrder(String token, Long id, ShipOrderRequest request);
 
-    ShippingResponse confirmReceived(String email,String token,Long id);
+    ShippingResponse markShippingShipped(String token, Long id);
+
+    ShippingResponse markShippingDelivered(Long id);
+
+    ShippingResponse updateShippingStatus(String token, Long id, ShippingStatus status);
+
+    ShippingResponse confirmReceived(String email, String token, Long id);
 
     MessageResponse cancelShipping(Long id);
 }

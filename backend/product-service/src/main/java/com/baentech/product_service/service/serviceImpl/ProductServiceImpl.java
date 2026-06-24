@@ -232,7 +232,7 @@ public class ProductServiceImpl implements ProductService {
 
             Files.write(filePath, file.getBytes());
 
-            String imageUrl = "/uploads/products/" + fileName;
+            String imageUrl = "/api/products/images/" + fileName;
 
             product.setImageUrl(imageUrl);
 

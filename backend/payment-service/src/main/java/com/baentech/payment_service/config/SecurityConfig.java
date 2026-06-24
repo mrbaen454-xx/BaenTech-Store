@@ -46,6 +46,8 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasRole("USER")
                             .requestMatchers(HttpMethod.GET, "/api/payments/order/{orderId}").hasRole("USER")
                             .requestMatchers(HttpMethod.PUT, "/api/payments/{id}/cancel").hasRole("USER")
+                            .requestMatchers(HttpMethod.POST, "/api/payments/xendit/create").hasRole("USER")
+                            .requestMatchers(HttpMethod.POST, "/api/payments/xendit/callback").permitAll()
 
                             // Detail payment
                             .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole("USER", "ADMIN")

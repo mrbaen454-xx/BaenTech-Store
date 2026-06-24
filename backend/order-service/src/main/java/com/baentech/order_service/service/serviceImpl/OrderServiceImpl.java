@@ -16,8 +16,10 @@ import com.baentech.order_service.payload.res.OrderResponse;
 import com.baentech.order_service.repository.OrderRepository;
 import com.baentech.order_service.service.OrderService;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -34,6 +36,12 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
 
     private final WebClient.Builder webClientBuilder;
+
+    @Value("${internal.api-key}")
+    private String internalApiKey;
+
+    @Value("${product.service.url:http://PRODUCT-SERVICE}")
+    private String productServiceUrl;
 
     @Override
     public OrderResponse checkout(String email, String token, CheckoutRequest request) {
@@ -149,13 +157,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public OrderResponse updateOrderStatus(Long id, String token,UpdateOrderStatusRequest request) {
+    @Transactional
+    public OrderResponse updateOrderStatus(Long id, String token, UpdateOrderStatusRequest request) {
         try {
             Order order = orderRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
             OrderStatus oldStatus = order.getStatus();
             OrderStatus newStatus = request.getStatus();
+
+            validateStatusTransition(oldStatus, newStatus);
 
             order.setStatus(newStatus);
 
@@ -164,6 +175,7 @@ public class OrderServiceImpl implements OrderService {
             if (newStatus == OrderStatus.PAID && oldStatus != OrderStatus.PAID) {
                 reduceProductStock(updatedOrder, token);
             }
+
             return mapToOrderResponse(updatedOrder);
 
         } catch (Exception e) {
@@ -206,14 +218,14 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse completeOrder(String email, Long id) {
         try {
             Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+                    .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
             if (!order.getEmail().equals(email)) {
                 throw new RuntimeException("Anda tidak memiliki akses ke order ini");
             }
 
-            if (order.getStatus() != OrderStatus.PAID) {
-                throw new RuntimeException("Order hanya bisa diselesaikan jika status PAID");
+            if (order.getStatus() != OrderStatus.SHIPPED) {
+                throw new RuntimeException("Order hanya bisa diselesaikan jika status SHIPPED");
             }
 
             order.setStatus(OrderStatus.COMPLETED);
@@ -230,44 +242,90 @@ public class OrderServiceImpl implements OrderService {
     private void sendOrderCreatedEmail(Order order) {
         try {
             EmailClientRequest emailRequest = new EmailClientRequest(
-                order.getEmail(),
-                "Pesanan Berhasil Dibuat - BaenTech Store",
-                "Halo " + order.getRecipientName() + ",\n\n" +
-                        "Pesanan kamu berhasil dibuat di BaenTech Store.\n\n" +
-                        "Nomor Order: " + order.getOrderNumber() + "\n" +
-                        "Total Pembayaran: Rp " + order.getTotalPrice() + "\n\n" +
-                        "Silakan lanjutkan pembayaran agar pesanan kamu dapat segera diproses.\n\n" +
-                        "Terima kasih sudah berbelanja di BaenTech Store.\n\n" +
-                        "Salam,\n" +
-                        "BaenTech Store"
+                    order.getEmail(),
+                    "Pesanan Berhasil Dibuat - BaenTech Store",
+                    "Halo " + order.getRecipientName() + ",\n\n" +
+                            "Pesanan kamu berhasil dibuat di BaenTech Store.\n\n" +
+                            "Nomor Order: " + order.getOrderNumber() + "\n" +
+                            "Total Pembayaran: Rp " + order.getTotalPrice() + "\n\n" +
+                            "Silakan lanjutkan pembayaran agar pesanan kamu dapat segera diproses.\n\n" +
+                            "Terima kasih sudah berbelanja di BaenTech Store.\n\n" +
+                            "Salam,\n" +
+                            "BaenTech Store"
             );
 
             webClientBuilder.build()
-                .post()
-                .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
-                .bodyValue(emailRequest)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+                    .post()
+                    .uri("http://NOTIFICATION-SERVICE/api/notifications/send-email")
+                    .bodyValue(emailRequest)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
 
         } catch (Exception e) {
             System.out.println("Gagal mengirim email order created: " + e.getMessage());
         }
     }
-    
-    private boolean isAdmin()
-    {
+
+    private boolean isAdmin() {
         return SecurityContextHolder.getContext()
-            .getAuthentication()
-            .getAuthorities()
-            .stream()
-            .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+                .getAuthentication()
+                .getAuthorities()
+                .stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
     }
 
-    private void reduceProductStock(Order order,String token) {
+    private void validateStatusTransition(OrderStatus oldStatus, OrderStatus newStatus) {
+        if (newStatus == null) {
+            throw new RuntimeException("Status order tidak boleh kosong");
+        }
+
+        if (oldStatus == newStatus) {
+            return;
+        }
+
+        if (oldStatus == OrderStatus.COMPLETED) {
+            throw new RuntimeException("Order yang sudah COMPLETED tidak bisa diubah statusnya");
+        }
+
+        if (oldStatus == OrderStatus.CANCELLED) {
+            throw new RuntimeException("Order yang sudah CANCELLED tidak bisa diubah statusnya");
+        }
+
+        switch (newStatus) {
+            case PAID -> {
+                if (oldStatus != OrderStatus.PENDING_PAYMENT) {
+                    throw new RuntimeException("Order hanya bisa menjadi PAID dari status PENDING_PAYMENT");
+                }
+            }
+            case SHIPPED -> {
+                if (oldStatus != OrderStatus.PAID && oldStatus != OrderStatus.PROCESSING) {
+                    throw new RuntimeException("Order hanya bisa menjadi SHIPPED jika status PAID");
+                }
+            }
+            case COMPLETED -> {
+                if (oldStatus != OrderStatus.SHIPPED) {
+                    throw new RuntimeException("Order hanya bisa menjadi COMPLETED jika status SHIPPED");
+                }
+            }
+            case CANCELLED -> {
+                if (oldStatus != OrderStatus.PENDING_PAYMENT && oldStatus != OrderStatus.PAID && oldStatus != OrderStatus.PROCESSING) {
+                    throw new RuntimeException("Order hanya bisa dibatalkan sebelum dikirim atau selesai");
+                }
+            }
+            case PROCESSING -> {
+                if (oldStatus != OrderStatus.PAID) {
+                    throw new RuntimeException("Order hanya bisa menjadi PROCESSING jika status PAID");
+                }
+            }
+            case PENDING_PAYMENT -> throw new RuntimeException("Order tidak bisa dikembalikan ke PENDING_PAYMENT");
+        }
+    }
+
+    private void reduceProductStock(Order order, String token) {
         try {
             List<ProductStockItemClientRequest> stockItems = order.getItems().stream()
-            .map(item -> new ProductStockItemClientRequest(item.getProductId(), item.getQuantity())).toList();
+                    .map(item -> new ProductStockItemClientRequest(item.getProductId(), item.getQuantity())).toList();
 
             ReduceStockClientRequest request = new ReduceStockClientRequest(stockItems);
 
@@ -284,6 +342,28 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Gagal mengurangi stok produk: " + e.getMessage());
         }
     }
+
+    private void reduceProductStockInternal(Order order) {
+    try {
+        List<ProductStockItemClientRequest> stockItems = order.getItems().stream()
+                .map(item -> new ProductStockItemClientRequest(item.getProductId(), item.getQuantity()))
+                .toList();
+
+        ReduceStockClientRequest request = new ReduceStockClientRequest(stockItems);
+
+        webClientBuilder.build()
+                .put()
+                .uri(productServiceUrl + "/api/products/internal/stock/reduce")
+                .header("X-Internal-Token", internalApiKey)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+    } catch (Exception e) {
+        throw new RuntimeException("Gagal mengurangi stok produk internal: " + e.getMessage());
+    }
+}
 
     private CartClientResponse getCartFromCartService(String token) {
         try {
@@ -380,5 +460,40 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             throw new RuntimeException("Gagal mapping order item: " + e.getMessage());
         }
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse markOrderAsPaid(String internalToken, Long id) {
+        if (internalToken == null || !internalToken.equals(internalApiKey)) {
+            throw new RuntimeException("Internal token tidak valid");
+        }
+
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            throw new RuntimeException("Order sudah CANCELLED dan tidak bisa ditandai PAID");
+        }
+
+        if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.SHIPPED) {
+            throw new RuntimeException("Order sudah diproses dan tidak bisa ditandai PAID ulang");
+        }
+
+        if (order.getStatus() == OrderStatus.PAID) {
+            return mapToOrderResponse(order);
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new RuntimeException("Order hanya bisa ditandai PAID dari status PENDING_PAYMENT");
+        }
+
+        order.setStatus(OrderStatus.PAID);
+
+        Order savedOrder = orderRepository.save(order);
+
+        reduceProductStockInternal(savedOrder);
+
+        return mapToOrderResponse(savedOrder);
     }
 }

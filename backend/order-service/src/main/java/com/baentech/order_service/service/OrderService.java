@@ -22,4 +22,6 @@ public interface OrderService {
     MessageResponse cancelOrder(String email, Long id);
 
     OrderResponse completeOrder(String email, Long id);
+
+    OrderResponse markOrderAsPaid(String internalToken, Long id);
 }

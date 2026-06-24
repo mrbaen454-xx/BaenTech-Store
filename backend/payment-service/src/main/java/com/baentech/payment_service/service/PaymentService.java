@@ -1,6 +1,7 @@
 package com.baentech.payment_service.service;
 
 import com.baentech.payment_service.payload.req.CreatePaymentRequest;
+import com.baentech.payment_service.payload.req.XenditInvoiceCallbackRequest;
 import com.baentech.payment_service.payload.res.MessageResponse;
 import com.baentech.payment_service.payload.res.PaymentResponse;
 
@@ -23,4 +24,8 @@ public interface PaymentService {
     PaymentResponse paymentFailed(String email, Long id);
 
     MessageResponse cancelPayment(String email, Long id);
+
+PaymentResponse createXenditPayment(String email, String token, CreatePaymentRequest request);
+
+PaymentResponse handleXenditCallback(String callbackToken, XenditInvoiceCallbackRequest request);
 }

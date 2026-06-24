@@ -9,11 +9,11 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
-
-import logo from "../assets/baentech-logo.png";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import BrandLogo from "./BrandLogo";
+import { getMyCartApi } from "../api/cartApi";
 
 const normalizeRole = (role) => {
   if (!role) return "";
@@ -175,6 +175,7 @@ function Navbar() {
   const { isDarkMode, toggleTheme } = useTheme();
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
 
   const token = getToken();
   const role = getFinalRole(user);
@@ -192,6 +193,43 @@ function Navbar() {
     location.pathname.startsWith("/product/");
 
   const showCenterMenu = !isProductPage;
+
+  const fetchCartCount = async () => {
+    if (!isLoggedIn || !isUser) {
+      setCartCount(0);
+      return;
+    }
+
+    try {
+      const cart = await getMyCartApi();
+      const items = Array.isArray(cart?.items) ? cart.items : [];
+
+      const totalItems =
+        Number(cart?.totalItems || 0) ||
+        items.reduce((total, item) => total + Number(item.quantity || 0), 0);
+
+      setCartCount(totalItems);
+    } catch (err) {
+      console.log("ERROR FETCH CART COUNT:", err);
+      setCartCount(0);
+    }
+  };
+
+  useEffect(() => {
+    fetchCartCount();
+
+    const handleCartUpdated = () => {
+      fetchCartCount();
+    };
+
+    window.addEventListener("baentech-cart-updated", handleCartUpdated);
+    window.addEventListener("storage", handleCartUpdated);
+
+    return () => {
+      window.removeEventListener("baentech-cart-updated", handleCartUpdated);
+      window.removeEventListener("storage", handleCartUpdated);
+    };
+  }, [isLoggedIn, isUser, location.pathname]);
 
   const handleLogout = () => {
     logout?.();
@@ -212,46 +250,31 @@ function Navbar() {
     setMobileOpen(false);
   };
 
+  const isActive = (path) => {
+    if (path === "/") return location.pathname === "/";
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
+
   return (
-    <header className="sticky top-0 z-50 px-2 pt-2">
-      <div className="mx-auto flex max-w-[1300px] items-center justify-between rounded-[2rem] border border-slate-200 bg-white/90 px-5 py-3 shadow-xl shadow-slate-300/40 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/30">
-        {" "}
-        <Link to="/" className="flex items-center gap-2" onClick={closeMobile}>
-          <img
-            src={logo}
-            alt="BaenTech Store"
-            className="h-9 w-auto object-contain"
-          />
-        </Link>
+    <header className="sticky top-0 z-50 px-3 pt-3 sm:px-5">
+      <div className="mx-auto flex max-w-[1320px] items-center justify-between rounded-[1.75rem] border border-white/70 bg-white/90 px-4 py-3 shadow-xl shadow-slate-400/20 backdrop-blur-2xl transition dark:border-slate-800/80 dark:bg-slate-900/90 dark:shadow-black/30 sm:px-5">
+        <BrandLogo onClick={closeMobile} />
+
         {showCenterMenu && (
-          <nav className="hidden items-center gap-7 lg:flex">
-            <Link
-              to="/products"
-              className="text-sm font-black text-slate-700 transition hover:text-blue-600 dark:text-slate-200 dark:hover:text-blue-400"
-            >
+          <nav className="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-100/70 p-1 dark:border-slate-800 dark:bg-slate-950/60 lg:flex">
+            <DesktopNavLink to="/products" active={isActive("/products")}>
               Produk
-            </Link>
-
-            <a
-              href="/#categories"
-              className="text-sm font-black text-slate-700 transition hover:text-blue-600 dark:text-slate-200 dark:hover:text-blue-400"
-            >
-              Kategori
-            </a>
-
-            <a
-              href="/#footer"
-              className="text-sm font-black text-slate-700 transition hover:text-blue-600 dark:text-slate-200 dark:hover:text-blue-400"
-            >
-              Tentang Kami
-            </a>
+            </DesktopNavLink>
+            <DesktopAnchor href="/#categories">Kategori</DesktopAnchor>
+            <DesktopAnchor href="/#footer">Tentang Kami</DesktopAnchor>
           </nav>
         )}
-        <div className="hidden items-center gap-3 lg:flex">
+
+        <div className="hidden items-center gap-2 lg:flex">
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:text-blue-400"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:text-blue-400"
             title="Theme"
           >
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -259,24 +282,20 @@ function Navbar() {
 
           {isLoggedIn && isUser && (
             <>
-              <Link
-                to="/cart"
-                className="relative flex h-11 w-11 items-center justify-center rounded-full text-slate-700 transition hover:bg-blue-50 hover:text-blue-600 dark:text-slate-200 dark:hover:bg-blue-950/40 dark:hover:text-blue-400"
-                title="Keranjang"
-              >
-                <ShoppingCart size={23} />
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">
-                  0
+              <IconNavLink to="/cart" title="Keranjang" active={isActive("/cart")}>
+                <ShoppingCart size={22} />
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white ring-2 ring-white dark:ring-slate-900">
+                  {cartCount > 99 ? "99+" : cartCount}
                 </span>
-              </Link>
+              </IconNavLink>
 
-              <Link
+              <IconNavLink
                 to="/my-orders"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-700 transition hover:bg-blue-50 hover:text-blue-600 dark:text-slate-200 dark:hover:bg-blue-950/40 dark:hover:text-blue-400"
                 title="Pesanan Saya"
+                active={isActive("/my-orders")}
               >
-                <PackageCheck size={23} />
-              </Link>
+                <PackageCheck size={22} />
+              </IconNavLink>
             </>
           )}
 
@@ -284,14 +303,14 @@ function Navbar() {
             <>
               <Link
                 to="/login"
-                className="rounded-full border border-blue-600 px-5 py-2.5 text-sm font-black text-blue-400 transition hover:bg-blue-600 hover:text-white"
+                className="rounded-full border border-blue-200 bg-blue-50 px-5 py-2.5 text-sm font-black text-blue-600 transition hover:-translate-y-0.5 hover:border-blue-600 hover:bg-blue-600 hover:text-white dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300"
               >
                 Login
               </Link>
 
               <Link
                 to="/register"
-                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
               >
                 Register
               </Link>
@@ -301,7 +320,7 @@ function Navbar() {
           {isLoggedIn && isAdmin && (
             <Link
               to="/admin/dashboard"
-              className="rounded-full border border-blue-600 px-5 py-2.5 text-sm font-black text-blue-400 transition hover:bg-blue-600 hover:text-white"
+              className="rounded-full border border-blue-200 bg-blue-50 px-5 py-2.5 text-sm font-black text-blue-600 transition hover:-translate-y-0.5 hover:border-blue-600 hover:bg-blue-600 hover:text-white dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300"
             >
               Admin
             </Link>
@@ -310,23 +329,23 @@ function Navbar() {
           {isLoggedIn && isUser && (
             <Link
               to="/profile"
-              className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-2 pr-4 transition hover:border-blue-500 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:bg-blue-950/30"
+              className="flex max-w-52 items-center gap-3 rounded-full border border-slate-200 bg-slate-50 py-1.5 pl-2 pr-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-500 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-950 dark:hover:bg-blue-950/30"
               title="Profile"
             >
               {userPhoto ? (
                 <img
                   src={userPhoto}
                   alt={userName}
-                  className="h-9 w-9 rounded-full border border-slate-700 object-cover"
+                  className="h-9 w-9 shrink-0 rounded-full border border-white object-cover shadow-sm dark:border-slate-700"
                 />
               ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
                   <UserRound size={18} />
                 </div>
               )}
 
-              <div className="text-left">
-                <p className="max-w-28 truncate text-sm font-black text-slate-900 dark:text-white">
+              <div className="min-w-0 text-left">
+                <p className="truncate text-sm font-black text-slate-900 dark:text-white">
                   {userName}
                 </p>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -340,16 +359,19 @@ function Navbar() {
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-slate-500/20 transition hover:-translate-y-0.5 hover:bg-red-600 dark:bg-white dark:text-slate-950 dark:hover:bg-red-500 dark:hover:text-white"
             >
+              <LogOut size={16} />
               Logout
             </button>
           )}
         </div>
+
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white lg:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-sm transition hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white lg:hidden"
+          aria-label="Buka menu"
         >
           <Menu size={21} />
         </button>
@@ -357,18 +379,15 @@ function Navbar() {
 
       {mobileOpen && (
         <div className="fixed inset-0 z-[999] bg-slate-950/70 backdrop-blur-sm lg:hidden">
-          <div className="ml-auto h-full w-80 max-w-[86%] bg-slate-950 p-5 shadow-2xl">
+          <div className="ml-auto flex h-full w-80 max-w-[86%] flex-col bg-slate-950 p-5 shadow-2xl transition">
             <div className="flex items-center justify-between">
-              <img
-                src={logo}
-                alt="BaenTech Store"
-                className="h-10 w-auto object-contain"
-              />
+              <BrandLogo onClick={closeMobile} dark />
 
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-full border border-slate-700 p-2 text-white"
+                className="rounded-full border border-slate-700 p-2 text-white transition hover:border-blue-500 hover:text-blue-400"
+                aria-label="Tutup menu"
               >
                 <X size={18} />
               </button>
@@ -378,22 +397,22 @@ function Navbar() {
               <Link
                 to="/profile"
                 onClick={closeMobile}
-                className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900 p-3"
+                className="mt-6 flex min-w-0 items-center gap-3 rounded-3xl border border-slate-700 bg-slate-900 p-3 transition hover:border-blue-500 hover:bg-blue-950/30"
               >
                 {userPhoto ? (
                   <img
                     src={userPhoto}
                     alt={userName}
-                    className="h-11 w-11 rounded-full border border-slate-700 object-cover"
+                    className="h-11 w-11 shrink-0 rounded-full border border-slate-700 object-cover"
                   />
                 ) : (
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-950/50 text-blue-300">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-950/50 text-blue-300">
                     <UserRound size={20} />
                   </div>
                 )}
 
-                <div>
-                  <p className="font-black text-white">{userName}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-black text-white">{userName}</p>
                   <p className="text-xs font-semibold text-slate-400">
                     Customer
                   </p>
@@ -401,7 +420,7 @@ function Navbar() {
               </Link>
             )}
 
-            <nav className="mt-8 space-y-2">
+            <nav className="mt-8 flex-1 space-y-2 overflow-y-auto">
               {showCenterMenu && (
                 <>
                   <MobileLink to="/products" onClick={closeMobile}>
@@ -421,7 +440,12 @@ function Navbar() {
               {isLoggedIn && isUser && (
                 <div className="grid grid-cols-2 gap-3 pt-3">
                   <MobileIconLink to="/cart" onClick={closeMobile}>
-                    <ShoppingCart size={22} />
+                    <div className="relative">
+                      <ShoppingCart size={22} />
+                      <span className="absolute -right-3 -top-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">
+                        {cartCount > 99 ? "99+" : cartCount}
+                      </span>
+                    </div>
                     <span>Keranjang</span>
                   </MobileIconLink>
 
@@ -439,11 +463,11 @@ function Navbar() {
               )}
             </nav>
 
-            <div className="mt-8 border-t border-slate-800 pt-5">
+            <div className="mt-5 border-t border-slate-800 pt-5">
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white"
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white transition hover:border-blue-500 hover:text-blue-400"
               >
                 {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
                 Theme
@@ -454,7 +478,7 @@ function Navbar() {
                   <Link
                     to="/login"
                     onClick={closeMobile}
-                    className="rounded-2xl border border-blue-600 px-5 py-3 text-center text-sm font-black text-blue-400"
+                    className="rounded-2xl border border-blue-600 px-5 py-3 text-center text-sm font-black text-blue-400 transition hover:bg-blue-600 hover:text-white"
                   >
                     Login
                   </Link>
@@ -462,7 +486,7 @@ function Navbar() {
                   <Link
                     to="/register"
                     onClick={closeMobile}
-                    className="rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-black text-white"
+                    className="rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-blue-700"
                   >
                     Register
                   </Link>
@@ -471,7 +495,7 @@ function Navbar() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-600"
                 >
                   <LogOut size={18} />
                   Logout
@@ -485,12 +509,54 @@ function Navbar() {
   );
 }
 
+function DesktopNavLink({ to, active, children }) {
+  return (
+    <Link
+      to={to}
+      className={`rounded-full px-4 py-2 text-sm font-black transition ${
+        active
+          ? "bg-white text-blue-600 shadow-sm dark:bg-slate-900 dark:text-blue-300"
+          : "text-slate-700 hover:bg-white hover:text-blue-600 dark:text-slate-200 dark:hover:bg-slate-900 dark:hover:text-blue-300"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function DesktopAnchor({ href, children }) {
+  return (
+    <a
+      href={href}
+      className="rounded-full px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-white hover:text-blue-600 dark:text-slate-200 dark:hover:bg-slate-900 dark:hover:text-blue-300"
+    >
+      {children}
+    </a>
+  );
+}
+
+function IconNavLink({ to, title, active, children }) {
+  return (
+    <Link
+      to={to}
+      title={title}
+      className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition hover:-translate-y-0.5 hover:text-blue-600 dark:hover:text-blue-300 ${
+        active
+          ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300"
+          : "border-transparent text-slate-700 hover:border-blue-200 hover:bg-blue-50 dark:text-slate-200 dark:hover:border-blue-900/60 dark:hover:bg-blue-950/40"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
 function MobileLink({ to, onClick, children }) {
   return (
     <Link
       to={to}
       onClick={onClick}
-      className="block rounded-2xl px-4 py-3 text-sm font-black text-white hover:bg-blue-950/50 hover:text-blue-400"
+      className="block rounded-2xl px-4 py-3 text-sm font-black text-white transition hover:bg-blue-950/50 hover:text-blue-400"
     >
       {children}
     </Link>
@@ -502,7 +568,7 @@ function MobileAnchor({ href, onClick, children }) {
     <a
       href={href}
       onClick={onClick}
-      className="block rounded-2xl px-4 py-3 text-sm font-black text-white hover:bg-blue-950/50 hover:text-blue-400"
+      className="block rounded-2xl px-4 py-3 text-sm font-black text-white transition hover:bg-blue-950/50 hover:text-blue-400"
     >
       {children}
     </a>
@@ -514,7 +580,7 @@ function MobileIconLink({ to, onClick, children }) {
     <Link
       to={to}
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 p-4 text-sm font-black text-white hover:border-blue-500 hover:text-blue-400"
+      className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 p-4 text-sm font-black text-white transition hover:border-blue-500 hover:bg-blue-950/30 hover:text-blue-400"
     >
       {children}
     </Link>

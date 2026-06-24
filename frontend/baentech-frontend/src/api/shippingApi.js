@@ -99,21 +99,33 @@ export const getShippingByIdApi = async (shippingId) => {
 
 export const createShippingApi = async (payload) => {
   const endpoints = [
+    "/api/shippings/create",
+    "/api/shipping/create",
     "/api/shippings",
     "/api/shipping",
-    "/api/shippings/create",
   ];
 
   let lastError = null;
 
   for (const endpoint of endpoints) {
     try {
+      console.log("TRY CREATE SHIPPING ENDPOINT:", endpoint);
+
       const response = await shippingAxios.post(endpoint, payload);
       return normalizeObject(response.data);
     } catch (err) {
       lastError = err;
 
-      if (err.response && err.response.status !== 404) {
+      console.log(
+        "CREATE SHIPPING FAILED:",
+        endpoint,
+        err.response?.status,
+        err.response?.data,
+      );
+
+      // Kalau endpoint salah tapi security backend balas 401/403,
+      // lanjut coba endpoint berikutnya dulu.
+      if (err.response && ![401, 403, 404, 405].includes(err.response.status)) {
         throw err;
       }
     }
@@ -121,7 +133,6 @@ export const createShippingApi = async (payload) => {
 
   throw lastError;
 };
-
 export const updateShippingStatusApi = async (shippingId, status) => {
   const endpoints = [
     `/api/shippings/${shippingId}/status`,

@@ -1,0 +1,263 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: baentech-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - baentech_postgres_data:/var/lib/postgresql/data
+      - ./database/docker-init:/docker-entrypoint-initdb.d
+    networks:
+      - baentech-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  discovery-service:
+    build:
+      context: ./backend/discovery-service
+      dockerfile: Dockerfile
+    container_name: baentech-discovery-service
+    restart: always
+    ports:
+      - "8761:8761"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+    networks:
+      - baentech-network
+
+  gateway-service:
+    build:
+      context: ./backend/gateway-service
+      dockerfile: Dockerfile
+    container_name: baentech-gateway-service
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+    depends_on:
+      - discovery-service
+    networks:
+      - baentech-network
+
+  auth-service:
+    build:
+      context: ./backend/auth-service
+      dockerfile: Dockerfile
+    container_name: baentech-auth-service
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      AUTH_SERVICE_PORT: 8081
+      AUTH_DB_URL: jdbc:postgresql://postgres:5432/baentech_auth_db
+      AUTH_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      AUTH_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    networks:
+      - baentech-network
+
+  product-service:
+    build:
+      context: ./backend/product-service
+      dockerfile: Dockerfile
+    container_name: baentech-product-service
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      PRODUCT_SERVICE_PORT: 8082
+      PRODUCT_DB_URL: jdbc:postgresql://postgres:5432/baentech_product_db
+      PRODUCT_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      PRODUCT_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+    volumes:
+      - baentech_product_uploads:/app/uploads/products
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    networks:
+      - baentech-network
+
+  user-service:
+    build:
+      context: ./backend/user-service
+      dockerfile: Dockerfile
+    container_name: baentech-user-service
+    restart: always
+    ports:
+      - "8083:8083"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      USER_SERVICE_PORT: 8083
+      USER_DB_URL: jdbc:postgresql://postgres:5432/baentech_user_db
+      USER_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      USER_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    networks:
+      - baentech-network
+
+  cart-service:
+    build:
+      context: ./backend/cart-service
+      dockerfile: Dockerfile
+    container_name: baentech-cart-service
+    restart: always
+    ports:
+      - "8084:8084"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      CART_SERVICE_PORT: 8084
+      CART_DB_URL: jdbc:postgresql://postgres:5432/baentech_cart_db
+      CART_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      CART_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    networks:
+      - baentech-network
+
+  order-service:
+    build:
+      context: ./backend/order-service
+      dockerfile: Dockerfile
+    container_name: baentech-order-service
+    restart: always
+    ports:
+      - "8085:8085"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      ORDER_SERVICE_PORT: 8085
+      ORDER_DB_URL: jdbc:postgresql://postgres:5432/baentech_order_db
+      ORDER_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      ORDER_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      PRODUCT_SERVICE_URL: http://product-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      product-service:
+        condition: service_started
+    networks:
+      - baentech-network
+
+  payment-service:
+    build:
+      context: ./backend/payment-service
+      dockerfile: Dockerfile
+    container_name: baentech-payment-service
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      PAYMENT_SERVICE_PORT: 8086
+      PAYMENT_DB_URL: jdbc:postgresql://postgres:5432/baentech_payment_db
+      PAYMENT_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      PAYMENT_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+      XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
+      XENDIT_CALLBACK_TOKEN: ${XENDIT_CALLBACK_TOKEN}
+      XENDIT_INVOICE_URL: https://api.xendit.co/v2/invoices
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      ORDER_SERVICE_URL: http://order-service:8085
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+    networks:
+      - baentech-network
+
+  shiping-serive:
+    build:
+      context: ./backend/shiping-serive
+      dockerfile: Dockerfile
+    container_name: baentech-shiping-serive
+    restart: always
+    ports:
+      - "8087:8087"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      SHIPPING_SERVICE_PORT: 8087
+      SHIPPING_DB_URL: jdbc:postgresql://postgres:5432/baentech_shipping_db
+      SHIPPING_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      SHIPPING_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-service:
+        condition: service_started
+    networks:
+      - baentech-network
+
+  notification-service:
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+    container_name: baentech-notification-service
+    restart: always
+    ports:
+      - "8088:8088"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0"
+      NOTIFICATION_SERVICE_PORT: 8088
+      EUREKA_DEFAULT_ZONE: http://discovery-service:8761/eureka/
+      EUREKA_REGISTER: true
+      EUREKA_FETCH: true
+      MAIL_HOST: smtp.gmail.com
+      MAIL_PORT: 587
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_SMTP_AUTH: true
+      MAIL_STARTTLS_ENABLE: true
+      SPRING_SECURITY_LOG_LEVEL: INFO
+    depends_on:
+      - discovery-service
+    networks:
+      - baentech-network
+
+networks:
+  baentech-network:
+    driver: bridge
+
+volumes:
+  baentech_postgres_data:
+  baentech_product_uploads:

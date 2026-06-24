@@ -56,6 +56,39 @@ public class Payment {
     private PaymentStatus status;
 
     private LocalDateTime paidAt;
+
+
+
+    
+    @Column(length = 30)
+    private String gateway;
+
+    @Column(length = 150)
+    private String gatewayOrderId;
+
+    @Column(length = 150)
+    private String gatewayInvoiceId;
+
+    @Column(length = 1000)
+    private String redirectUrl;
+
+    @Column(length = 100)
+    private String transactionStatus;
+
+    @Column(length = 100)
+    private String paymentType;
+
+    @Column(length = 100)
+    private String paymentChannel;
+
+    @Column(length = 100)
+    private String paymentDestination;
+
+    @Column(columnDefinition = "TEXT")
+    private String rawNotification;
+
+
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
