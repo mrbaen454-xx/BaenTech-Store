@@ -36,6 +36,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     public PaymentServiceImpl(
             PaymentRepository paymentRepository,
+            //karena ada dua web client builder, maka di inisialisasi dengan @Qualifier
             @Qualifier("loadBalancedWebClientBuilder") WebClient.Builder loadBalancedWebClientBuilder,
             XenditService xenditService
     ) {
@@ -53,6 +54,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Value("${internal.api-key}")
     private String internalApiKey;
 
+
+    //method ini dipakai untuk membuat payment biasa/mauah untuk sebuah order, tidak melalui xendit
     @Override
     public PaymentResponse createPayment(String email, String token, CreatePaymentRequest request) {
         try {
@@ -60,6 +63,8 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new RuntimeException("Payment untuk order ini sudah dibuat");
             }
 
+            //mengambil data order dari order-service berdasarkan order id
+            //token di kirim agar order-service bisa memvalidasi token
             OrderClientResponse order = getOrderFromOrderService(request.getOrderId(), token);
 
             if (order == null) {
@@ -70,6 +75,7 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new RuntimeException("Anda tidak memiliki akses ke order ini");
             }
 
+            //payment hanya boleh dibuat kalau order masih berstatus PENDING_PAYMENT
             if (!"PENDING_PAYMENT".equalsIgnoreCase(order.getStatus())) {
                 throw new RuntimeException("Order tidak dalam status PENDING_PAYMENT");
             }
@@ -99,7 +105,7 @@ public class PaymentServiceImpl implements PaymentService {
             List<Payment> payments = paymentRepository.findByEmailOrderByCreatedAtDesc(email);
 
             return payments.stream()
-                    .map(this::syncPaymentWithXenditIfPossible)
+                    .map(this::syncPaymentWithXenditIfPossible)//sebelum payment dikirim ke frontend,sistem mencoba sync status payment denan xendit jika payment itu menggunakan gateway xendit
                     .map(this::mapToPaymentResponse)
                     .toList();
 
@@ -118,6 +124,7 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new RuntimeException("Anda tidak memiliki akses ke payment ini");
             }
 
+            //jika payment memakai xendit dan status masih bisa mengambil status terbaru dari xendit
             payment = syncPaymentWithXenditIfPossible(payment);
 
             return mapToPaymentResponse(payment);
@@ -137,6 +144,7 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new RuntimeException("Anda tidak memiliki akses ke payment ini");
             }
 
+            //sync status dengan xendit jika memungkinkan
             payment = syncPaymentWithXenditIfPossible(payment);
 
             return mapToPaymentResponse(payment);
@@ -161,15 +169,18 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Transactional
     public PaymentResponse paymentSuccess(String token, Long id) {
         try {
             Payment payment = paymentRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Payment tidak ditemukan"));
 
+            //jika payment sudah succes, tidak boleh diproses ulang
             if (payment.getStatus() == PaymentStatus.SUCCESS) {
                 throw new RuntimeException("Payment sudah berhasil sebelumnya");
             }
 
+            //payment yang sudah cancelled atau expired tidak bisa diproses lagi
             if (payment.getStatus() == PaymentStatus.CANCELLED
                     || payment.getStatus() == PaymentStatus.EXPIRED) {
                 throw new RuntimeException("Payment sudah tidak bisa diproses");
@@ -180,7 +191,8 @@ public class PaymentServiceImpl implements PaymentService {
 
             Payment savedPayment = paymentRepository.save(payment);
 
-            updateOrderStatusToPaid(payment.getOrderId(), token);
+            //mengubah status order menjadi PAID melalui order-service (internal)
+            updateOrderToPaid(payment.getOrderId());
 
             sendPaymentSuccessEmail(payment);
 
@@ -192,6 +204,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Transactional
     public PaymentResponse paymentFailed(String email, Long id) {
         try {
             Payment payment = paymentRepository.findById(id)
@@ -246,6 +259,9 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+
+    //membuat payment menggunakan gateway xendit
+    //Method ini membuat payment di database, lalu membuat invoice xendit
     @Override
     @Transactional
     public PaymentResponse createXenditPayment(
@@ -254,19 +270,25 @@ public class PaymentServiceImpl implements PaymentService {
             CreatePaymentRequest request
     ) {
         try {
+            //mengecek apakah order sudah punya payment
             if (paymentRepository.existsByOrderId(request.getOrderId())) {
+                //mengambil payment lama jika sudah ada 
                 Payment existingPayment = paymentRepository.findByOrderId(request.getOrderId())
                         .orElseThrow(() -> new RuntimeException("Payment tidak ditemukan"));
 
+                //Sync status payment lama dengan xendit
                 existingPayment = syncPaymentWithXenditIfPossible(existingPayment);
 
+                //jika payment lama sudah punya redirect url invoice, maka tidak perlu membuat invoice baru
                 if (existingPayment.getRedirectUrl() != null) {
                     return mapToPaymentResponse(existingPayment);
                 }
             }
 
+            //mengambil data order dari order-service
             OrderClientResponse order = getOrderFromOrderService(token, request.getOrderId());
 
+            //mengecek apakah order milik user yang sedang login
             if (!String.valueOf(order.getEmail()).equalsIgnoreCase(email)) {
                 throw new RuntimeException("Order ini bukan milik user yang sedang login");
             }
@@ -286,11 +308,12 @@ public class PaymentServiceImpl implements PaymentService {
 
             Payment savedPayment = paymentRepository.save(payment);
 
+            //membuat invoice ke xendit
             XenditInvoiceResponse invoice = xenditService.createInvoice(savedPayment, order);
 
-            savedPayment.setGatewayInvoiceId(invoice.getId());
-            savedPayment.setRedirectUrl(invoice.getInvoiceUrl());
-            savedPayment.setTransactionStatus(invoice.getStatus());
+            savedPayment.setGatewayInvoiceId(invoice.getId());//menyimpan id invoice xendit
+            savedPayment.setRedirectUrl(invoice.getInvoiceUrl());//menyimpan URL invoice Xendit frontend bisa mengarahkan user ke URL ini untuk membayar
+            savedPayment.setTransactionStatus(invoice.getStatus());//menyimpan status invoice dari xendit
 
             Payment finalPayment = paymentRepository.save(savedPayment);
 
@@ -301,6 +324,8 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+
+    //menerima callback dari xendit saat status invoice berubah
     @Override
     @Transactional
     public PaymentResponse handleXenditCallback(
@@ -308,20 +333,25 @@ public class PaymentServiceImpl implements PaymentService {
             XenditInvoiceCallbackRequest request
     ) {
         try {
+            //mengecek token callback jika token salah,callback ditolak
             if (callbackToken == null || !callbackToken.equals(xenditCallbackToken)) {
                 throw new RuntimeException("Callback token Xendit tidak valid");
             }
 
+            //Mencari payment berdasarkan external id dari xendit
+            //External id itu sebelumnya dibuat dari gatewayOrderId
             Payment payment = paymentRepository.findByGatewayOrderId(request.getExternalId())
                     .orElseThrow(() -> new RuntimeException("Payment Xendit tidak ditemukan"));
 
+            // semua di bawah field yang diupdate dari callback:
             payment.setGatewayInvoiceId(request.getId());
             payment.setTransactionStatus(request.getStatus());
             payment.setPaymentType(request.getPaymentMethod());
             payment.setPaymentChannel(request.getPaymentChannel());
             payment.setPaymentDestination(request.getPaymentDestination());
-            payment.setRawNotification(new ObjectMapper().writeValueAsString(request));
-
+            payment.setRawNotification(new ObjectMapper().writeValueAsString(request));//menyimpan data callback mentah dalam betuk JSON string
+            
+            //mengubah status payment lokal berdasarkan status dari xendit
             applyXenditStatus(payment, request.getStatus(), request.getPaidAt());
 
             Payment savedPayment = paymentRepository.save(payment);
@@ -333,26 +363,33 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    //menyimpankan status payment dengan xendit
+    //dipakai saat user melihat payment
     private Payment syncPaymentWithXenditIfPossible(Payment payment) {
         try {
+            //payment tidak null
             if (payment == null) {
                 return null;
             }
 
+            //gateway adalah xendit
             if (!"XENDIT".equalsIgnoreCase(String.valueOf(payment.getGateway()))) {
                 return payment;
             }
 
+            //gateway invoice id ada
             if (payment.getGatewayInvoiceId() == null || payment.getGatewayInvoiceId().isBlank()) {
                 return payment;
             }
 
+            //status belum final
             if (payment.getStatus() == PaymentStatus.SUCCESS
                     || payment.getStatus() == PaymentStatus.CANCELLED
                     || payment.getStatus() == PaymentStatus.EXPIRED) {
                 return payment;
             }
 
+            //mengambil data invoice terbaru dari xendit
             XenditInvoiceResponse invoice = xenditService.getInvoice(payment.getGatewayInvoiceId());
 
             payment.setTransactionStatus(invoice.getStatus());
@@ -360,6 +397,7 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setPaymentChannel(invoice.getPaymentChannel());
             payment.setPaymentDestination(invoice.getPaymentDestination());
 
+            //menerapkan status invoice xendit ke status payment lokal
             applyXenditStatus(payment, invoice.getStatus(), invoice.getPaidAt());
 
             return paymentRepository.save(payment);
@@ -370,33 +408,43 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    //mengubah status payment berdasarkan status dari xendit
     private void applyXenditStatus(Payment payment, String rawStatus, String paidAt) {
+        //mengubah status dari xendit menjadi huruf besar
         String status = String.valueOf(rawStatus).toUpperCase();
 
+        //jika xendit memberi status PAID atau SETTLED, maka payment dianggap sukses
         if ("PAID".equals(status) || "SETTLED".equals(status)) {
+            //mengecek apakah sebelumnya payment belum succes
+            //di cek agar update order dan email tidak di kirim berulang ulang
             boolean wasNotSuccess = payment.getStatus() != PaymentStatus.SUCCESS;
 
+            //mengubah status payment menjadi success
             payment.setStatus(PaymentStatus.SUCCESS);
+
+            //jika paidAt belum ada, isi dengan waktu sekarang
             if (payment.getPaidAt() == null) {
                 payment.setPaidAt(LocalDateTime.now());
             }
 
+            //jika sebelumnya belum success, update order menjadi paid, kirim email pembayaran berhasil
             if (wasNotSuccess) {
                 updateOrderToPaid(payment.getOrderId());
                 sendPaymentSuccessEmail(payment);
             }
 
-        } else if ("PENDING".equals(status)) {
+        } else if ("PENDING".equals(status)) { // jika payment masih pending, payment masih menunggu pembayaran
             payment.setStatus(PaymentStatus.PENDING);
 
-        } else if ("EXPIRED".equals(status)) {
+        } else if ("EXPIRED".equals(status)) { // jika payment status expired, invoice sudah expired
             payment.setStatus(PaymentStatus.EXPIRED);
 
-        } else {
+        } else { // jika status tidak dikenali sebagai PAID, SETTLED, PENDING, EXPIRED, payment dianggap gagal
             payment.setStatus(PaymentStatus.FAILED);
         }
     }
 
+    //mengambil order dari order-service menggunakan URL dari konfigurasi
     private OrderClientResponse getOrderFromOrderService(String token, Long orderId) {
         try {
             return loadBalancedWebClientBuilder.build()
@@ -412,6 +460,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    //Mengubah order menjadi PAID lewat endpoint internal order-service
     private void updateOrderToPaid(Long orderId) {
         try {
             loadBalancedWebClientBuilder.build()
@@ -485,6 +534,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    //mengambil order dari order-service menggunakan service name
     private OrderClientResponse getOrderFromOrderService(Long orderId, String token) {
         try {
             return loadBalancedWebClientBuilder.build()
@@ -500,24 +550,9 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-    private void updateOrderStatusToPaid(Long orderId, String token) {
-        try {
-            UpdateOrderStatusClientRequest request = new UpdateOrderStatusClientRequest("PAID");
 
-            loadBalancedWebClientBuilder.build()
-                    .put()
-                    .uri("http://ORDER-SERVICE/api/orders/" + orderId + "/status")
-                    .header("Authorization", token)
-                    .bodyValue(request)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
 
-        } catch (Exception e) {
-            throw new RuntimeException("Gagal update status order menjadi PAID: " + e.getMessage());
-        }
-    }
-
+    //membuat nomor payment secara otomatis
     private String generatePaymentNumber() {
         try {
             String date = LocalDate.now().toString().replace("-", "");

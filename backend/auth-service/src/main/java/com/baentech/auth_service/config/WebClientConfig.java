@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class WebClientConfig {
 
     @Bean
+    //agar bisa menggunakan nama service dari eureka, nukan harus URL lengkap localhost
     @LoadBalanced
     public WebClient.Builder webClientBuilder() {
         return WebClient.builder();

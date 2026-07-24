@@ -1,4 +1,4 @@
-package com.baentech.product_service.service.impl;
+package com.baentech.product_service.service.serviceImpl;
 
 import java.util.List;
 
@@ -23,6 +23,13 @@ public class ProductReviewServiceImpl implements ProductReviewService {
 
     private final ProductRepository productRepository;
     private final ProductReviewRepository productReviewRepository;
+    private final org.springframework.web.client.RestTemplate restTemplate;
+
+    @org.springframework.beans.factory.annotation.Value("${internal.api-key}")
+    private String internalApiKey;
+
+    @org.springframework.beans.factory.annotation.Value("${order.service.url:http://ORDER-SERVICE}")
+    private String orderServiceUrl;
 
     @Override
     public List<ProductReviewResponse> getReviewsByProduct(Long productId) {
@@ -65,8 +72,30 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             userName = cleanEmail;
         }
 
+        // Pengecekan apakah user pernah membeli produk ini (Bug 6 fix)
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("X-Internal-Token", internalApiKey);
+            org.springframework.http.HttpEntity<?> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            String url = orderServiceUrl + "/api/orders/internal/check-purchase?email=" + cleanEmail + "&productId=" + productId;
+            org.springframework.http.ResponseEntity<Boolean> response = restTemplate.exchange(
+                    url,
+                    org.springframework.http.HttpMethod.GET,
+                    entity,
+                    Boolean.class
+            );
+
+            if (response.getBody() == null || !response.getBody()) {
+                throw new RuntimeException("Anda harus membeli produk ini terlebih dahulu sebelum memberikan ulasan.");
+            }
+        } catch (org.springframework.web.client.RestClientException e) {
+            throw new RuntimeException("Gagal memvalidasi status pembelian produk: " + e.getMessage());
+        }
+
+        //Mencari review berdasarkan productId dan email
         ProductReview review = productReviewRepository.findByProductIdAndEmail(productId, cleanEmail)
-                .orElse(ProductReview.builder()
+                .orElse(ProductReview.builder()//jika review sudah ada pakai review lama,jika review maka buat baru
                         .product(product)
                         .email(cleanEmail)
                         .build());
@@ -113,6 +142,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
                 .build();
     }
 
+    //email dibuat tidak boleh null,tidak boleh kosong,di-trim,di-lowercase
     private String normalizeEmail(String email) {
         if (email == null || email.isBlank()) {
             throw new RuntimeException("Email user tidak ditemukan dari token");

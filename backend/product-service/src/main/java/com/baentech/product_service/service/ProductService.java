@@ -31,4 +31,5 @@ public interface ProductService {
 
     MessageResponse reduceStock(ReduceStockRequest request);
 
+    MessageResponse restoreStock(ReduceStockRequest request);
 }

@@ -9,13 +9,19 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
+
 @Component
-public class JwtUtil {
+public class JwtUtil 
+{
+
+
 
     private String secret = "BaenTechStoreSecretKey2026YangSangatPanjangDanAmanMinimal32Character";
 
     private Long expiration = 86400000L;
 
+
+    //Method ini dipakai untuk membuat signing key
     private Key getSigningKey() {
         try {
             return Keys.hmacShaKeyFor(secret.getBytes());
@@ -24,6 +30,9 @@ public class JwtUtil {
         }
     }
 
+
+
+   // Method ini dipakai untuk membuat token JWT 
     public String generateToken(String email, String role) {
         try {
             Date now = new Date();
@@ -42,6 +51,7 @@ public class JwtUtil {
         }
     }
 
+    //Method ini dipakai untuk membaca semua isi token JWT
     public Claims extractAllClaims(String token) {
         try {
             return Jwts.parser()
@@ -55,6 +65,8 @@ public class JwtUtil {
         }
     }
 
+    //Method ini dipakai untuk mengambil email dari token
+    //email di simpan di bagian subject token
     public String extractEmail(String token) {
         try {
             return extractAllClaims(token).getSubject();
@@ -64,6 +76,7 @@ public class JwtUtil {
         }
     }
 
+    //Method ini dipakai untuk mengambil role dari token
     public String extractRole(String token) {
         try {
             return extractAllClaims(token).get("role", String.class);
@@ -73,6 +86,7 @@ public class JwtUtil {
         }
     }
 
+    //Method ini dipakai untuk mengecek apakah token sudah expired atau belum
     public boolean isTokenExpired(String token) {
         try {
             return extractAllClaims(token).getExpiration().before(new Date());
@@ -82,6 +96,7 @@ public class JwtUtil {
         }
     }
 
+    //Method ini dipakai untuk mengecek apakah token valid atau tidak
     public boolean validationToken(String token) {
         try {
             extractAllClaims(token);

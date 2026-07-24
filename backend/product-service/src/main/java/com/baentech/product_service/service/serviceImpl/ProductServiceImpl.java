@@ -200,28 +200,37 @@ public class ProductServiceImpl implements ProductService {
                 throw new RuntimeException("File gambar tidak boleh kosong");
             }
 
+            //Mengambil tipe file
             String contentType = file.getContentType();
 
+            //Mengecek apakah tipe file gamabar
             if (contentType == null || !contentType.startsWith("image/")) {
                 throw new RuntimeException("File harus berupa gambar");
             }
 
+            //Folder tujuan upload gambar produk 
             String uploadDir = "uploads/products";
 
+            //Membuat objek folder upload
             File directory = new File(uploadDir);
             if (!directory.exists()) {
-                directory.mkdirs();
+                directory.mkdirs();//jika folder belum ada, maka folder dibuat otomatis
             }
 
+            //Mengambil nama file asli dari upload
             String originalFilename = file.getOriginalFilename();
 
             if (originalFilename == null || originalFilename.isBlank()) {
                 throw new RuntimeException("Nama file tidak valid");
             }
 
+            //Variable untuk menyimpan ekstensi file
+            //contoh: .png, .Jpg, .jpeg
             String extension = "";
 
+            //mencari posisi titik terkhir pada nama file
             int dotIndex = originalFilename.lastIndexOf(".");
+            //Mengambil ekstensi file dari titik terakhir
             if (dotIndex >= 0) {
                 extension = originalFilename.substring(dotIndex);
             }
@@ -246,6 +255,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public MessageResponse reduceStock(ReduceStockRequest request) {
         try {
             if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -257,9 +267,13 @@ public class ProductServiceImpl implements ProductService {
                 Product product = productRepository.findById(item.getProductId())
                     .orElseThrow(() -> new RuntimeException("Produk dengan id " + item.getProductId() + " tidak ditemukan"));
 
+                //Mengambil stok sekarang jika stok null, dianggap 0 
                 Integer currentStock = product.getStock() != null ? product.getStock() : 0;
+                //Mengambil jumlah yang akan di kurangi jika quentity null, dianggap 0
                 Integer quantity = item.getQuantity() != null ? item.getQuantity() : 0;
 
+
+                //Mengecek apakah stok cukup jika stok kurang dari jumlah pembelian, proses gagal
                 if (currentStock < quantity) {
                     throw new RuntimeException("Stok produk " + product.getName() + " tidak mencukupi");
                 }
@@ -274,6 +288,35 @@ public class ProductServiceImpl implements ProductService {
                 .build();
         } catch (Exception e) {
             throw new RuntimeException("Gagal mengurangi stok produk : " + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public MessageResponse restoreStock(ReduceStockRequest request) {
+        try {
+            if (request.getItems() == null || request.getItems().isEmpty()) {
+                throw new RuntimeException("Item stok tidak boleh kosong");
+            }
+
+            for(StockItemRequest item : request.getItems())
+            {
+                Product product = productRepository.findById(item.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Produk dengan id " + item.getProductId() + " tidak ditemukan"));
+
+                Integer currentStock = product.getStock() != null ? product.getStock() : 0;
+                Integer quantity = item.getQuantity() != null ? item.getQuantity() : 0;
+
+                product.setStock(currentStock + quantity);
+                productRepository.save(product);
+            }
+
+            return MessageResponse.builder()
+                .success(true)
+                .message("Stok produk berhasil dikembalikan")
+                .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Gagal mengembalikan stok produk : " + e.getMessage());
         }
     }
    

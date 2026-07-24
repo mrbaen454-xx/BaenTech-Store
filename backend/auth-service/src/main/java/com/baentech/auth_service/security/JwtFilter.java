@@ -25,6 +25,8 @@ public class JwtFilter extends OncePerRequestFilter {
     private final CustomUserDetailsService customUserDetailsService;
 
 
+
+    //Method ini menetukan request mana yang tidak perlu di filter
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getServletPath();
@@ -35,6 +37,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 || path.equals("/error")
                 || path.startsWith("/actuator");
     }
+
 
     @Override
     protected void doFilterInternal(
@@ -53,6 +56,7 @@ public class JwtFilter extends OncePerRequestFilter {
             System.out.println("PATH: " + request.getServletPath());
             System.out.println("AUTH HEADER: " + authHeader);
 
+            //Mengecek apakah Header Authorization tidak null dan di awali dengan "Bearer "
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 token = authHeader.substring(7);
                 email = jwtUtil.extractEmail(token);
@@ -60,6 +64,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 System.out.println("EMAIL FROM TOKEN: " + email);
             }
 
+            // Mengecek apakah email tidak null dan authentication masih null
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
 
@@ -71,10 +76,14 @@ public class JwtFilter extends OncePerRequestFilter {
                                     userDetails.getAuthorities()
                             );
 
+                    // menambahkan detaik request ke authentication token
+                    // detail ini bisa berisi informasi seperti IP address atau sesion id        
                     authenticationToken.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request)
                     );
 
+                    //menyimpan authentication ke securityContext
+                    //setelah baris ini, spring security menggap user sudah login untuk request tersebut
                     SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
                     System.out.println("JWT AUTHENTICATION SUCCESS");
@@ -87,6 +96,7 @@ public class JwtFilter extends OncePerRequestFilter {
             System.out.println("JWT FILTER ERROR: " + e.getMessage());
         }
 
+        //untuk melanjutkan request ke filter berikutnya atau ke controller
         filterChain.doFilter(request, response);
     }
 }

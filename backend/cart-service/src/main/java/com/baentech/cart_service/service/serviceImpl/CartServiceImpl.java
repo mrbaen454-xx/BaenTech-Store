@@ -35,8 +35,10 @@ public class CartServiceImpl implements CartService{
     public CartResponse addItemToCart(String email, AddCartItemRequest request)
     {
       try {
+        //mengambil cart user berdasarkan email, jika user belum punya cart akan dibuat baru
         Cart cart = getOrCreateCart(email);
 
+        //mengambil data produk dri produk-service 
         ProductClientResponse product = getProductFromProductClientResponse(request.getProductId());
 
         if (product == null) {
@@ -58,6 +60,7 @@ public class CartServiceImpl implements CartService{
             throw new RuntimeException("Quentity melebihi stok produk");
         }
 
+        //mengecek apakah produk yang sama sudah ada di cart user
         CartItem cartItem = cartItemRepository
             .findByCartEmailAndProductId(email, request.getProductId())
             .orElse(null);
@@ -132,6 +135,7 @@ public class CartServiceImpl implements CartService{
                 .orElseThrow(() -> new RuntimeException("Item cart tidak ditemukan"));
                 
                 cartItem.setQuantity(request.getQuantity());
+                //menghitung ulang total subtotal item
                 cartItem.setSubTotal(cartItem.getPrice().multiply(BigDecimal.valueOf(request.getQuantity())));
                 
                 cartItemRepository.save(cartItem);
@@ -211,6 +215,7 @@ public class CartServiceImpl implements CartService{
         }
     }
     
+    //mengambil atau membuat cart
     private Cart getOrCreateCart(String email) {
         try {
             return cartRepository.findByEmail(email)
@@ -231,8 +236,8 @@ public class CartServiceImpl implements CartService{
             List<CartItem> items = cart.getItems();
 
             BigDecimal totalPrice = items.stream()
-                    .map(item -> item.getSubTotal() == null ? BigDecimal.ZERO : item.getSubTotal())
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    .map(item -> item.getSubTotal() == null ? BigDecimal.ZERO : item.getSubTotal())//mengambil subtotal dari setiap item,jika subtotal null, di anggap 0
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);//menjumlah semua subtotal
 
             cart.setTotalPrice(totalPrice);
 
@@ -249,6 +254,7 @@ public class CartServiceImpl implements CartService{
                 .map(this::mapToCartItemResponse)
                 .toList();
             
+            //menghitung total quentity semua item
             Integer totalItems = cart.getItems().stream()
                 .mapToInt(CartItem::getQuantity)
                 .sum();

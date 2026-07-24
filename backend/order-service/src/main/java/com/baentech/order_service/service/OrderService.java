@@ -24,4 +24,6 @@ public interface OrderService {
     OrderResponse completeOrder(String email, Long id);
 
     OrderResponse markOrderAsPaid(String internalToken, Long id);
+
+    boolean hasUserPurchasedProduct(String email, Long productId);
 }

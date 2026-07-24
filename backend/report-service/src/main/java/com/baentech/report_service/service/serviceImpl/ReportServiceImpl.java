@@ -49,6 +49,7 @@ public class ReportServiceImpl implements ReportService {
 
     private final WebClient.Builder webClientBuilder;
 
+    //Metod ini di pakai untuk membuat ringkasan laporan
     @Override
     public ReportSummaryResponse getSummary(String token) {
         try {
@@ -118,6 +119,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //Mengambil laporan order berdasarkan rentang tanggal
     @Override
     public List<OrderReportResponse> getOrderReports(String token, LocalDate startDate, LocalDate endDate) {
         try {
@@ -142,6 +144,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //Mengambil laporan payment berdasarkan rentang tanggal
     @Override
     public List<PaymentReportResponse> getPaymentReports(String token, LocalDate startDate, LocalDate endDate) {
         try {
@@ -166,15 +169,20 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //Membuat file excel untuk laporan order
     @Override
+    //byte[], karena file excel akan dikirim ke frondend sebagai data binary
     public byte[] exportOrderReportsToExcel(String token, LocalDate startDate, LocalDate endDate) {
         List<OrderReportResponse> orders = getOrderReports(token, startDate, endDate);
 
+        // membuat workbook excel ".xlsx"
         try (Workbook workbook = new XSSFWorkbook();
                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
 
+            //membuat sheet dengan nama Order Report
             Sheet sheet = workbook.createSheet("Order Report");
 
+            //membuat style excel
             CellStyle titleStyle = createTitleStyle(workbook);
             CellStyle subtitleStyle = createSubtitleStyle(workbook);
             CellStyle headerStyle = createHeaderStyle(workbook);
@@ -185,30 +193,40 @@ public class ReportServiceImpl implements ReportService {
             CellStyle statusStyle = createStatusStyle(workbook);
             CellStyle totalStyle = createTotalStyle(workbook);
 
+            //penanda baris excel yang sedang dibuat
+            //dimulai dari baris ke 0
             int rowIndex = 0;
 
-            Row titleRow = sheet.createRow(rowIndex++);
+            //membuat baris judul dan mengatur tinggi baris
+            Row titleRow = sheet.createRow(rowIndex++);//rowIndex++ pakai nilai sekarang, lalu naik 1
             titleRow.setHeightInPoints(32);
 
+            //membuat cell judul di kolom 0
             Cell titleCell = titleRow.createCell(0);
-            titleCell.setCellValue("BAENTECH STORE - ORDER REPORT");
+            titleCell.setCellValue("BAENTECH STORE - ORDER REPORT");//isi judul
             titleCell.setCellStyle(titleStyle);
 
+            //menggabungkan cell dari kolom 0 sampai 9 pada baris 0
+            //tujuan agar judul melebar di atas tabel
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 9));
             applyMergedRegionStyle(sheet, 0, 0, 0, 9, titleStyle);
 
+            //membuat baris subtitle
             Row subtitleRow = sheet.createRow(rowIndex++);
             subtitleRow.setHeightInPoints(24);
 
+            //membuat subtitle periode laporan
             Cell subtitleCell = subtitleRow.createCell(0);
             subtitleCell.setCellValue("Periode: " + formatPeriod(startDate, endDate));
             subtitleCell.setCellStyle(subtitleStyle);
 
+            //Merge cell subtitle dari kolom 0 sampai 9
             sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 9));
             applyMergedRegionStyle(sheet, 1, 1, 0, 9, subtitleStyle);
 
             rowIndex++;
 
+            //membuat baris header tabel
             Row headerRow = sheet.createRow(rowIndex++);
             headerRow.setHeightInPoints(25);
 
@@ -225,6 +243,7 @@ public class ReportServiceImpl implements ReportService {
                     "Created At"
             };
 
+            //loop untuk membuat cell header satu per satu
             for (int i = 0; i < headers.length; i++) {
                 createCell(headerRow, i, headers[i], headerStyle);
             }
@@ -232,7 +251,9 @@ public class ReportServiceImpl implements ReportService {
             int no = 1;
             BigDecimal grandTotal = BigDecimal.ZERO;
 
+            
             for (OrderReportResponse order : orders) {
+                //membuat baris header tabel
                 Row row = sheet.createRow(rowIndex++);
                 row.setHeightInPoints(22);
 
@@ -273,6 +294,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //membuat file excel untuk laporan payment
     @Override
     public byte[] exportPaymentReportsToExcel(String token, LocalDate startDate, LocalDate endDate) {
         List<PaymentReportResponse> payments = getPaymentReports(token, startDate, endDate);
@@ -383,6 +405,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //memfilter data berdasarkan tanggal
     private boolean isBetWeenDate(LocalDateTime createdAt, LocalDate startDate, LocalDate endDate) {
         try {
             if (createdAt == null) {
@@ -405,6 +428,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //mengambil semua order dari order-service
     private List<OrderClientResponse> getOrdersFromOrderService(String token) {
         try {
             List<OrderClientResponse> orders = webClientBuilder.build()
@@ -422,6 +446,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //mengambil semua payment dari payment-service
     private List<PaymentClientResponse> getPaymentsFromPaymentService(String token) {
         try {
             List<PaymentClientResponse> payments = webClientBuilder.build()
@@ -439,6 +464,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //mengambil semua shipping dari shipping-service
     private List<ShippingClientResponse> getShippingsFromShippingService(String token) {
         try {
             List<ShippingClientResponse> shippings = webClientBuilder.build()
@@ -456,6 +482,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //membuat data grafik pendapatan
     @Override
     public List<IncomeChartResponse> getIncomeChart(String token, IncomePeriod period) {
         if (period == null) {
@@ -482,6 +509,7 @@ public class ReportServiceImpl implements ReportService {
         return buildIncomeChart(period, payments);
     }
 
+    //memilih jenis chart yang akan di buat
     private List<IncomeChartResponse> buildIncomeChart(
             IncomePeriod period,
             List<PaymentReportResponse> payments) {
@@ -496,6 +524,7 @@ public class ReportServiceImpl implements ReportService {
         return buildWeeklyIncome(payments);
     }
 
+    //membuat data income chart mingguan
     private List<IncomeChartResponse> buildWeeklyIncome(List<PaymentReportResponse> payments) {
         Map<Integer, IncomeChartResponse> result = new LinkedHashMap<>();
 
@@ -525,6 +554,7 @@ public class ReportServiceImpl implements ReportService {
         return new ArrayList<>(result.values());
     }
 
+    //membuat chart pendapatan bulanan, tapi dikelompokan per minggu
     private List<IncomeChartResponse> buildMonthlyIncome(List<PaymentReportResponse> payments) {
         Map<Integer, IncomeChartResponse> result = new LinkedHashMap<>();
 
@@ -561,6 +591,7 @@ public class ReportServiceImpl implements ReportService {
         return new ArrayList<>(result.values());
     }
 
+    //membuat chart pendapatan tahunan perbulan
     private List<IncomeChartResponse> buildYearlyIncome(List<PaymentReportResponse> payments) {
         Map<Integer, IncomeChartResponse> result = new LinkedHashMap<>();
 
@@ -595,6 +626,7 @@ public class ReportServiceImpl implements ReportService {
         return new ArrayList<>(result.values());
     }
 
+    //mengecek apakah payment dianggap berhasil
     private boolean isSuccessPayment(PaymentReportResponse payment) {
         if (payment == null || payment.getStatus() == null) {
             return false;
@@ -607,6 +639,7 @@ public class ReportServiceImpl implements ReportService {
                 || status.equals("COMPLETED");
     }
 
+    //mengambil tanggal payment untuk income chart
     private LocalDate getPaymentDate(PaymentReportResponse payment) {
         LocalDateTime paymentDateTime = payment.getPaidAt();
 
@@ -621,6 +654,7 @@ public class ReportServiceImpl implements ReportService {
         return paymentDateTime.toLocalDate();
     }
 
+    //menambah amount ke value income chart
     private void addIncome(IncomeChartResponse response, BigDecimal amount) {
         if (response == null || amount == null) {
             return;
@@ -629,6 +663,7 @@ public class ReportServiceImpl implements ReportService {
         response.setValue(response.getValue().add(amount));
     }
 
+    //membuat style untuk judul utama excel
     private CellStyle createTitleStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
 
@@ -648,6 +683,7 @@ public class ReportServiceImpl implements ReportService {
         return style;
     }
 
+    //membuat style untuk subtitle periode
     private CellStyle createSubtitleStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
 
@@ -667,6 +703,7 @@ public class ReportServiceImpl implements ReportService {
         return style;
     }
 
+    //membuat style header tabel
     private CellStyle createHeaderStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
 
@@ -685,6 +722,7 @@ public class ReportServiceImpl implements ReportService {
         return style;
     }
 
+    //membuat style teks biasa
     private CellStyle createTextStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
 
@@ -696,12 +734,14 @@ public class ReportServiceImpl implements ReportService {
         return style;
     }
 
+    //membuat style teks rata tengah
     private CellStyle createCenterStyle(Workbook workbook) {
         CellStyle style = createTextStyle(workbook);
         style.setAlignment(HorizontalAlignment.CENTER);
         return style;
     }
 
+    //membuat style khusus uang
     private CellStyle createMoneyStyle(Workbook workbook) {
         CellStyle style = createTextStyle(workbook);
 
@@ -712,12 +752,14 @@ public class ReportServiceImpl implements ReportService {
         return style;
     }
 
+    //membuat style tanggal
     private CellStyle createDateStyle(Workbook workbook) {
         CellStyle style = createTextStyle(workbook);
         style.setAlignment(HorizontalAlignment.CENTER);
         return style;
     }
 
+    //membuat style kolom status
     private CellStyle createStatusStyle(Workbook workbook) {
         CellStyle style = createTextStyle(workbook);
 
@@ -733,11 +775,13 @@ public class ReportServiceImpl implements ReportService {
         return style;
     }
 
+    //membuat style untuk baris total
     private CellStyle createTotalStyle(Workbook workbook) {
         CellStyle style = createHeaderStyle(workbook);
         style.setAlignment(HorizontalAlignment.RIGHT);
         return style;
     }
+
 
     private void setThinBorder(CellStyle style) {
         style.setBorderTop(BorderStyle.THIN);
@@ -751,6 +795,7 @@ public class ReportServiceImpl implements ReportService {
         style.setLeftBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
     }
 
+    //halper untuk membuat cell excel
     private void createCell(Row row, int column, Object value, CellStyle style) {
         Cell cell = row.createCell(column);
 
@@ -765,6 +810,7 @@ public class ReportServiceImpl implements ReportService {
         cell.setCellStyle(style);
     }
 
+    //membuat style ke semua cell yang digabung/merge
     private void applyMergedRegionStyle(
             Sheet sheet,
             int firstRow,
@@ -791,6 +837,7 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //mengatur lebar kolom excel otomatis
     private void setColumnWidths(Sheet sheet, int totalColumns) {
         for (int i = 0; i < totalColumns; i++) {
             sheet.autoSizeColumn(i);
@@ -802,10 +849,12 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
+    //mencegah error jika nilai uang null
     private BigDecimal safeBigDecimal(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    //mengubah tanggal dan jam menjadi teks
     private String formatDateTime(LocalDateTime value) {
         if (value == null) {
             return "-";
@@ -814,6 +863,7 @@ public class ReportServiceImpl implements ReportService {
         return value.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
     }
 
+    //membuat teks periode laporan
     private String formatPeriod(LocalDate startDate, LocalDate endDate) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy");
 

@@ -46,12 +46,14 @@ public class ShippingServiceImpl implements ShippingService {
                 throw new RuntimeException("Shipping hanya bisa dibuat untuk order yang sudah PAID");
             }
 
+            //mengambil nama kurir dari request
             String courier = resolveRequiredText(
                     "Kurir tidak boleh kosong",
                     request.getCourier(),
                     request.getCourierName()
             );
 
+            //mengambil nomor resi dari request
             String trackingNumber = resolveRequiredText(
                     "Nomor resi tidak boleh kosong",
                     request.getTrackingNumber(),
@@ -60,6 +62,7 @@ public class ShippingServiceImpl implements ShippingService {
             );
 
             LocalDateTime now = LocalDateTime.now();
+            //mengambil estimasi lama pengiriman
             Integer deliveryDays = resolveDeliveryDays(request);
 
             Shipping shipping = Shipping.builder()
@@ -81,6 +84,7 @@ public class ShippingServiceImpl implements ShippingService {
 
             Shipping shippingSaved = shippingRepository.save(shipping);
 
+            //setelah shipping dibuat, order-service diupdate agar status order menjadi shipped
             updateOrderStatusToShipped(shippingSaved.getOrderId(), token);
             sendShippingShippedEmail(shippingSaved);
 
@@ -145,6 +149,7 @@ public class ShippingServiceImpl implements ShippingService {
         }
     }
 
+    //Method ini dipakai untuk mengirim ulang/ mengatur data pengiriman shipping yang sudah ada
     @Override
     @Transactional
     public ShippingResponse shipOrder(String token, Long id, ShipOrderRequest request) {
@@ -180,6 +185,8 @@ public class ShippingServiceImpl implements ShippingService {
         }
     }
 
+
+    //mengubah status shipping menjadi shipped
     @Override
     @Transactional
     public ShippingResponse markShippingShipped(String token, Long id) {
@@ -222,6 +229,7 @@ public class ShippingServiceImpl implements ShippingService {
         }
     }
 
+    //mengubah status shipping menjadi delivered
     @Override
     public ShippingResponse markShippingDelivered(Long id) {
         try {
@@ -251,6 +259,7 @@ public class ShippingServiceImpl implements ShippingService {
             throw new RuntimeException("Status shipping tidak boleh kosong");
         }
 
+        //switch expression
         return switch (status) {
             case SHIPPED -> markShippingShipped(token, id);
             case DELIVERED -> markShippingDelivered(id);
@@ -258,13 +267,14 @@ public class ShippingServiceImpl implements ShippingService {
                 cancelShipping(id);
                 Shipping shipping = shippingRepository.findById(id)
                         .orElseThrow(() -> new RuntimeException("Shipping tidak ditemukan"));
-                yield mapToShippingResponse(shipping);
+                yield mapToShippingResponse(shipping);//untuk mengembalikan dari case,karena case menggunakan {}
             }
             case PENDING -> throw new RuntimeException("Alur baru tidak memakai status PENDING. Shipping langsung SHIPPED saat dibuat.");
             case RECEIVED -> throw new RuntimeException("Status RECEIVED hanya boleh dari konfirmasi user.");
         };
     }
 
+    //untuk konfirmasi bahwa barang sudah di terima
     @Override
     public ShippingResponse confirmReceived(String email, String token, Long id) {
         try {
@@ -449,6 +459,7 @@ public class ShippingServiceImpl implements ShippingService {
         }
     }
 
+    //Mengambil estimasi lama pengiriman dari request
     private Integer resolveDeliveryDays(CreateShippingRequest request) {
         if (request.getEstimatedDays() != null) {
             return request.getEstimatedDays();
@@ -461,6 +472,7 @@ public class ShippingServiceImpl implements ShippingService {
         return 1;
     }
 
+    //method helper untuk memilih teks pertama yang tidak kosong
     private String resolveRequiredText(String message, String... values) {
         for (String value : values) {
             if (value != null && !value.isBlank()) {

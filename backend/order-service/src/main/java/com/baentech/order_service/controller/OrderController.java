@@ -275,4 +275,17 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+
+    @GetMapping("/internal/check-purchase")
+    public ResponseEntity<Boolean> checkPurchase(
+            @RequestHeader("X-Internal-Token") String internalToken,
+            @RequestParam String email,
+            @RequestParam Long productId) {
+        try {
+            boolean hasPurchased = orderService.hasUserPurchasedProduct(email, productId);
+            return ResponseEntity.ok(hasPurchased);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(false);
+        }
+    }
 }

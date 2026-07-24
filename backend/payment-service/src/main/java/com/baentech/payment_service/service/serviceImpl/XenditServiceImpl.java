@@ -39,12 +39,17 @@ public class XenditServiceImpl implements XenditService {
     @Value("${app.frontend-url}")
     private String frontendUrl;
 
+    //membayar invoice pembayaran di xendit
     @Override
     public XenditInvoiceResponse createInvoice(Payment payment, OrderClientResponse order) {
         try {
+            //Membersihkan dan validasi secret key
             String cleanSecretKey = getCleanSecretKey();
+
+            //membuat basic auth dari secret key
             String basicAuth = buildBasicAuth(cleanSecretKey);
 
+            //membuat body request invoice
             Map<String, Object> body = buildInvoiceRequestBody(payment, order);
 
             XenditInvoiceResponse response = plainWebClientBuilder.build()
@@ -58,6 +63,8 @@ public class XenditServiceImpl implements XenditService {
                     .bodyToMono(XenditInvoiceResponse.class)
                     .block();
 
+            //memastikan xendit mengembalikan URL invoice
+            //kalau tidak ada invoice url, pembayaran tidak bisa lanjut
             if (response == null || response.getInvoiceUrl() == null || response.getInvoiceUrl().isBlank()) {
                 throw new RuntimeException("Response invoice Xendit tidak membawa invoice_url");
             }
@@ -71,15 +78,22 @@ public class XenditServiceImpl implements XenditService {
         }
     }
 
+
+    // mengembalikan detail invoice dari xendit berdasarkan invoice id
+    //di pakai saat sync status payement
     @Override
     public XenditInvoiceResponse getInvoice(String invoiceId) {
         try {
+            //mengecek invoice id kosong atau tidak
             if (invoiceId == null || invoiceId.isBlank()) {
                 throw new RuntimeException("Invoice ID Xendit kosong");
             }
 
+            //membersihkan secret key
             String cleanSecretKey = getCleanSecretKey();
+            //membuat basic auth
             String basicAuth = buildBasicAuth(cleanSecretKey);
+            //menghapus slash di akhir invoice url berakhir dengan /
             String baseInvoiceUrl = invoiceUrl.endsWith("/")
                     ? invoiceUrl.substring(0, invoiceUrl.length() - 1)
                     : invoiceUrl;
@@ -106,13 +120,18 @@ public class XenditServiceImpl implements XenditService {
         }
     }
 
+    //membersihkan dan validasi secret key xendit
     private String getCleanSecretKey() {
+        //jika secretKey null, ubah menjadi string kosong
+        //jika tidak null,hapus spasi awal dan akhir
         String cleanSecretKey = secretKey == null ? "" : secretKey.trim();
 
         if (cleanSecretKey.isBlank()) {
             throw new RuntimeException("Xendit secret key belum diisi");
         }
 
+        //cek apakah yang dipakai adaah public key,jika public key, tampilkan error
+        //karena untuk server backend harus memakai secret key, bukan public key
         if (cleanSecretKey.startsWith("xnd_public")) {
             throw new RuntimeException("Xendit secret key salah. Jangan pakai Public Key, pakai Secret Key dari dashboard Xendit.");
         }
@@ -120,16 +139,20 @@ public class XenditServiceImpl implements XenditService {
         return cleanSecretKey;
     }
 
+    //membuat basic auth dari secret key untuk xendit
     private String buildBasicAuth(String cleanSecretKey) {
-        return Base64.getEncoder()
-                .encodeToString((cleanSecretKey + ":").getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder()//mengubah byte menjadi string base64
+                .encodeToString((cleanSecretKey + ":").getBytes(StandardCharsets.UTF_8));//secret key digabung dengan titik dua : 
     }
 
+    //membuat body JSON untuk membuat invoice di xendit
     private Map<String, Object> buildInvoiceRequestBody(Payment payment, OrderClientResponse order) {
+        //mengubah amount menjadi angka bulat
         long amount = payment.getAmount()
                 .setScale(0, RoundingMode.HALF_UP)
                 .longValue();
 
+        //membuat object customer
         Map<String, Object> customer = new LinkedHashMap<>();
         customer.put("given_names", order.getRecipientName());
         customer.put("email", order.getEmail());
@@ -171,6 +194,7 @@ public class XenditServiceImpl implements XenditService {
         return body;
     }
 
+    //menormalkan nomor HP agar cocok untuk xendit
     private String normalizePhoneNumber(String phoneNumber) {
         if (phoneNumber == null || phoneNumber.isBlank()) {
             return "+6280000000000";
